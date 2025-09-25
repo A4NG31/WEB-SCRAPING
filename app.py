@@ -29,13 +29,19 @@ with tab_andino:
             with st.spinner("🔎 Consultando facturas pendientes..."):
                 data = scraper.get_pending_invoices()
             st.subheader("📦 Facturas Pendientes")
-            st.table(data) if data else st.warning("⚠️ No se encontraron facturas pendientes")
+            if data:
+                st.table(data)
+            else:
+                st.warning("⚠️ No se encontraron facturas pendientes")
 
             # Jobs
             with st.spinner("🛠 Consultando jobs..."):
                 jobs = scraper.get_jobs_config()
             st.subheader("🕒 ULTIMA ACTUALIZACIÓN DE JOBS")
-            st.table(jobs) if jobs else st.warning("⚠️ No se encontraron jobs")
+            if jobs:
+                st.table(jobs)
+            else:
+                st.warning("⚠️ No se encontraron jobs")
 
             # Facturas recientes
             with st.spinner("🧾 Consultando facturas..."):
@@ -78,13 +84,19 @@ with tab_bulevar:
             with st.spinner("🔎 Consultando facturas pendientes..."):
                 data_b = scraper_b.get_pending_invoices()
             st.subheader("📦 Facturas Pendientes (Bulevar)")
-            st.table(data_b) if data_b else st.warning("⚠️ No se encontraron facturas pendientes")
+            if data_b:
+                st.table(data_b)
+            else:
+                st.warning("⚠️ No se encontraron facturas pendientes")
 
             # Jobs
             with st.spinner("🛠 Consultando jobs Bulevar..."):
                 jobs_b = scraper_b.get_jobs_config()
             st.subheader("🕒 ULTIMA ACTUALIZACIÓN DE JOBS (Bulevar)")
-            st.table(jobs_b) if jobs_b else st.warning("⚠️ No se encontraron jobs")
+            if jobs_b:
+                st.table(jobs_b)
+            else:
+                st.warning("⚠️ No se encontraron jobs")
 
             # Facturas recientes
             with st.spinner("🧾 Consultando facturas Bulevar..."):
