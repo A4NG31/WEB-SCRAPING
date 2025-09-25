@@ -1,19 +1,19 @@
 import requests
 from typing import List, Dict, Any
 
-class FacturaParkScraper:
+class FacturaBulevarScraper:
     def __init__(self):
-        self.login_endpoint = "https://facturaandino.gopass.com.co/api/accc_auth/login"
+        self.login_endpoint = "https://facturabulevar.gopass.com.co/api/accc_auth/login"
         self.pending_api = (
-            "https://facturaandino.gopass.com.co/api/trns_invoices/pendingEmit"
+            "https://facturabulevar.gopass.com.co/api/trns_invoices/pendingEmit"
             "?$top=10&$skip=0&$select=pending,idcommerce,name&$orderby=idserietype%20asc&additionalQuery="
         )
         self.jobs_api = (
-            "https://facturaandino.gopass.com.co/api/genc_jobsconfig"
+            "https://facturabulevar.gopass.com.co/api/genc_jobsconfig"
             "?$top=10&$skip=0&$select=jobname,updatedat&$orderby=idjob%20asc"
         )
         self.invoices_api = (
-            "https://facturaandino.gopass.com.co/api/trns_transparking/getcustom"
+            "https://facturabulevar.gopass.com.co/api/trns_transparking/getcustom"
             "?$top=10&$skip=0&additionalQuery=t.transdate%20between%20%272025-09-25%2000%3A00%3A00%20-5%3A00%27"
             "%20and%20%272025-09-25%2023:59:59%20-5:00%27&headers=false"
         )
@@ -71,7 +71,6 @@ class FacturaParkScraper:
             return []
 
     def get_invoices(self) -> Dict[str, Any]:
-        """Devuelve la factura más reciente y el total de facturas."""
         try:
             r = self.session.get(self.invoices_api, timeout=15)
             if r.status_code != 200:
