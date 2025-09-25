@@ -18,6 +18,6 @@ if st.button("Ejecutar scraping"):
             data = scraper.get_pending_invoices()
         if data:
             st.success("✅ Datos obtenidos")
-            st.table(data)   # tabla bonita en vez de JSON crudo
+            st.table(data)
         else:
             st.warning("⚠️ No se encontraron facturas pendientes")
