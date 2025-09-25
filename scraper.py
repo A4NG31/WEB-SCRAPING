@@ -1,5 +1,5 @@
 import requests
-from typing import List, Dict
+from typing import List, Dict, Any
 
 class FacturaParkScraper:
     def __init__(self):
@@ -11,6 +11,11 @@ class FacturaParkScraper:
         self.jobs_api = (
             "https://facturaandino.gopass.com.co/api/genc_jobsconfig"
             "?$top=10&$skip=0&$select=jobname,updatedat&$orderby=idjob%20asc"
+        )
+        self.invoices_api = (
+            "https://facturaandino.gopass.com.co/api/trns_transparking/getcustom"
+            "?$top=10&$skip=0&additionalQuery=t.transdate%20between%20%272025-09-25%2000%3A00%3A00%20-5%3A00%27"
+            "%20and%20%272025-09-25%2023:59:59%20-5:00%27&headers=false"
         )
         self.session = requests.Session()
 
@@ -64,3 +69,18 @@ class FacturaParkScraper:
             ]
         except Exception:
             return []
+
+    def get_invoices(self) -> Dict[str, Any]:
+        """Devuelve la factura más reciente y el total de facturas."""
+        try:
+            r = self.session.get(self.invoices_api, timeout=15)
+            if r.status_code != 200:
+                return {}
+            j = r.json()
+            total = j.get("data", {}).get("totalItems", 0)
+            rows = j.get("data", {}).get("rows", [])
+            if not rows:
+                return {"total_facturas": total, "factura_reciente": {}}
+            return {"total_facturas": total, "factura_reciente": rows[0]}
+        except Exception:
+            return {}
