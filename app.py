@@ -12,12 +12,12 @@ if st.button("Ejecutar scraping"):
     with st.spinner("🔑 Intentando login..."):
         ok = scraper.login(USERNAME, PASSWORD)
     if not ok:
-        st.error("❌ Error al iniciar sesión (creds o método de login no coinciden). Revisa DevTools y comparte el payload si quieres que lo adapte.")
+        st.error("❌ Error al iniciar sesión")
     else:
-        with st.spinner("🔎 Extrayendo facturas pendientes..."):
+        with st.spinner("🔎 Consultando facturas pendientes..."):
             data = scraper.get_pending_invoices()
         if data:
             st.success("✅ Datos obtenidos")
             st.json(data)
         else:
-            st.warning("⚠️ No se encontraron facturas pendientes (o la página requiere JS avanzado).")
+            st.warning("⚠️ No se encontraron facturas pendientes")
