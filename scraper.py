@@ -8,6 +8,11 @@ class FacturaParkScraper:
             "https://facturaandino.gopass.com.co/api/trns_invoices/pendingEmit"
             "?$top=10&$skip=0&$select=pending,idcommerce,name&$orderby=idserietype%20asc&additionalQuery="
         )
+        self.jobs_api = (
+            "https://facturaandino.gopass.com.co/api/genc_jobsconfig"
+            "?$top=10&$skip=0&$select=idjob,jobname,laststartdate,lastrunduration,nextrundate,updatedat"
+            "&$orderby=idjob%20asc"
+        )
         self.session = requests.Session()
 
     def login(self, username: str, password: str) -> bool:
@@ -18,7 +23,6 @@ class FacturaParkScraper:
             r = self.session.post(self.login_endpoint, json=payload, headers=headers, timeout=10)
             if r.status_code != 200:
                 return False
-
             j = r.json()
             token = j.get("tokens", {}).get("access", {}).get("token")
             if token:
@@ -42,6 +46,28 @@ class FacturaParkScraper:
                     "comercio": row.get("name"),
                     "total_pendientes": row.get("pending"),
                     "id_comercio": row.get("idcommerce"),
+                })
+            return result
+        except Exception:
+            return []
+
+    def get_jobs_config(self) -> List[Dict]:
+        """Consulta jobs configurados y retorna algunos campos clave."""
+        try:
+            r = self.session.get(self.jobs_api, timeout=10)
+            if r.status_code != 200:
+                return []
+            j = r.json()
+            rows = j.get("data", {}).get("rows", [])
+            result = []
+            for row in rows:
+                result.append({
+                    "id_job": row.get("idjob"),
+                    "nombre_job": row.get("jobname"),
+                    "ultima_ejecucion": row.get("laststartdate"),
+                    "duracion": row.get("lastrunduration"),
+                    "proxima_ejecucion": row.get("nextrundate"),
+                    "ultima_actualizacion": row.get("updatedat"),
                 })
             return result
         except Exception:
