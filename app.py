@@ -31,4 +31,3 @@ if st.button("Ejecutar scraping"):
             st.table(jobs)
         else:
             st.warning("⚠️ No se encontraron jobs")
-
