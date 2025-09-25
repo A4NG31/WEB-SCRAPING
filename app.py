@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from scraper import FacturaParkScraper
 
-st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊")
+st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
 st.title("📊 FacturaPark Scraper")
 
 USERNAME = st.secrets["credentials"]["USERNAME"]
@@ -42,20 +42,24 @@ if st.button("Ejecutar scraping"):
 
             factura = invoices["factura_reciente"]
 
-            # Seleccionar campos clave
+            # Seleccionar campos clave ampliados
             campos_clave = {
                 "Número Factura": factura.get("numinvoice"),
                 "ID Factura": factura.get("idinvoice"),
                 "Fecha Factura": factura.get("fecha_factura"),
-                "Valor Neto": factura.get("valor_neto_factura"),
-                "Valor Total": factura.get("valor_factura"),
+                "Valor Neto": f"${factura.get('valor_neto_factura'):,}" if factura.get("valor_neto_factura") else None,
+                "Valor Total": f"${factura.get('valor_factura'):,}" if factura.get("valor_factura") else None,
                 "Tercero": factura.get("nombretercero"),
                 "NIT": factura.get("nit"),
                 "Estado": factura.get("invoicestatus"),
+                "ID Transacción": factura.get("idtransaction"),
+                "ID TransParking": factura.get("idtransparking"),
+                "Serie": f"{factura.get('seriename')}-{factura.get('serienumber')}",
+                "Comercio": factura.get("namecommerce"),
             }
 
             factura_df = pd.DataFrame([campos_clave])
-            st.table(factura_df)
+            st.dataframe(factura_df, use_container_width=True)
 
         else:
             st.warning("⚠️ No se encontraron facturas")
