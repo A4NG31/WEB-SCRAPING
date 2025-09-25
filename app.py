@@ -53,8 +53,8 @@ if st.button("Ejecutar scraping"):
                 "Tercero": factura.get("nombretercero"),
                 "Fecha Salida": factura.get("outdate"),
                 "Estado": factura.get("invoicestatus"),
-                "Serie": f"{factura.get('seriename')}-{factura.get('serienumber')}",
-                "Comercio": factura.get("namecommerce"),
+                "CUFE": factura.get("cufe"),
+                "Factura": factura.get("id_unico"),
             }
 
             factura_df = pd.DataFrame([campos_clave])
