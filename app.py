@@ -9,7 +9,7 @@ PASSWORD = st.secrets["credentials"]["PASSWORD"]
 
 if st.button("Ejecutar scraping"):
     scraper = FacturaParkScraper()
-    with st.spinner("🔑 Intentando login..."):
+    with st.spinner("🔑 Iniciando sesión..."):
         ok = scraper.login(USERNAME, PASSWORD)
     if not ok:
         st.error("❌ Error al iniciar sesión")
@@ -18,6 +18,6 @@ if st.button("Ejecutar scraping"):
             data = scraper.get_pending_invoices()
         if data:
             st.success("✅ Datos obtenidos")
-            st.json(data)
+            st.table(data)   # tabla bonita en vez de JSON crudo
         else:
             st.warning("⚠️ No se encontraron facturas pendientes")
