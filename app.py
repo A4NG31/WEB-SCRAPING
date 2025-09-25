@@ -39,9 +39,23 @@ if st.button("Ejecutar scraping"):
         st.subheader("🧾 FACTURAS")
         if invoices and invoices.get("factura_reciente"):
             st.metric("Total de facturas", invoices["total_facturas"])
-            
-            # Convertir la factura en DataFrame para mostrarla como tabla
-            factura_df = pd.DataFrame([invoices["factura_reciente"]])
+
+            factura = invoices["factura_reciente"]
+
+            # Seleccionar campos clave
+            campos_clave = {
+                "Número Factura": factura.get("numinvoice"),
+                "ID Factura": factura.get("idinvoice"),
+                "Fecha Factura": factura.get("fecha_factura"),
+                "Valor Neto": factura.get("valor_neto_factura"),
+                "Valor Total": factura.get("valor_factura"),
+                "Tercero": factura.get("nombretercero"),
+                "NIT": factura.get("nit"),
+                "Estado": factura.get("invoicestatus"),
+            }
+
+            factura_df = pd.DataFrame([campos_clave])
             st.table(factura_df)
+
         else:
             st.warning("⚠️ No se encontraron facturas")
