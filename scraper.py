@@ -1,19 +1,19 @@
 import requests
 from typing import List, Dict, Any
 
-class FacturaBulevarScraper:
+class FacturaParkScraper:
     def __init__(self):
-        self.login_endpoint = "https://facturabulevar.gopass.com.co/api/accc_auth/login"
+        self.login_endpoint = "https://facturaandino.gopass.com.co/api/accc_auth/login"
         self.pending_api = (
-            "https://facturabulevar.gopass.com.co/api/trns_invoices/pendingEmit"
+            "https://facturaandino.gopass.com.co/api/trns_invoices/pendingEmit"
             "?$top=10&$skip=0&$select=pending,idcommerce,name&$orderby=idserietype%20asc&additionalQuery="
         )
         self.jobs_api = (
-            "https://facturabulevar.gopass.com.co/api/genc_jobsconfig"
+            "https://facturaandino.gopass.com.co/api/genc_jobsconfig"
             "?$top=10&$skip=0&$select=jobname,updatedat&$orderby=idjob%20asc"
         )
         self.invoices_api = (
-            "https://facturabulevar.gopass.com.co/api/trns_transparking/getcustom"
+            "https://facturaandino.gopass.com.co/api/trns_transparking/getcustom"
             "?$top=10&$skip=0&additionalQuery=t.transdate%20between%20%272025-09-25%2000%3A00%3A00%20-5%3A00%27"
             "%20and%20%272025-09-25%2023:59:59%20-5:00%27&headers=false"
         )
@@ -40,8 +40,7 @@ class FacturaBulevarScraper:
             r = self.session.get(self.pending_api, timeout=10)
             if r.status_code != 200:
                 return []
-            j = r.json()
-            rows = j.get("data", {}).get("rows", [])
+            rows = r.json().get("data", {}).get("rows", [])
             return [
                 {
                     "comercio": row.get("name"),
@@ -58,13 +57,9 @@ class FacturaBulevarScraper:
             r = self.session.get(self.jobs_api, timeout=10)
             if r.status_code != 200:
                 return []
-            j = r.json()
-            rows = j.get("data", {}).get("rows", [])
+            rows = r.json().get("data", {}).get("rows", [])
             return [
-                {
-                    "nombre_job": row.get("jobname"),
-                    "ultima_actualizacion": row.get("updatedat"),
-                }
+                {"nombre_job": row.get("jobname"), "ultima_actualizacion": row.get("updatedat")}
                 for row in rows
             ]
         except Exception:
