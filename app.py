@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from scraper import FacturaParkScraper
 
 st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊")
@@ -38,6 +39,9 @@ if st.button("Ejecutar scraping"):
         st.subheader("🧾 FACTURAS")
         if invoices and invoices.get("factura_reciente"):
             st.metric("Total de facturas", invoices["total_facturas"])
-            st.json(invoices["factura_reciente"])
+            
+            # Convertir la factura en DataFrame para mostrarla como tabla
+            factura_df = pd.DataFrame([invoices["factura_reciente"]])
+            st.table(factura_df)
         else:
             st.warning("⚠️ No se encontraron facturas")
