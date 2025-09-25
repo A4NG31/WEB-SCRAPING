@@ -31,3 +31,13 @@ if st.button("Ejecutar scraping"):
             st.table(jobs)
         else:
             st.warning("⚠️ No se encontraron jobs")
+
+        # Facturas (más reciente y total)
+        with st.spinner("🧾 Consultando facturas..."):
+            invoices = scraper.get_invoices()
+        st.subheader("🧾 FACTURAS")
+        if invoices and invoices.get("factura_reciente"):
+            st.metric("Total de facturas", invoices["total_facturas"])
+            st.json(invoices["factura_reciente"])
+        else:
+            st.warning("⚠️ No se encontraron facturas")
