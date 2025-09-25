@@ -45,14 +45,14 @@ if st.button("Ejecutar scraping"):
             # Seleccionar campos clave ampliados
             campos_clave = {
                 "ID": factura.get("idinvoice"),
+                "Id Factura": factura.get("idtransaction"),
+                "Id Transacción	": factura.get("idtransparking"),
                 "Fecha Factura": factura.get("fecha_factura"),
                 "Valor Neto": f"${factura.get('valor_neto_factura'):,}" if factura.get("valor_neto_factura") else None,
                 "Valor Total": f"${factura.get('valor_factura'):,}" if factura.get("valor_factura") else None,
                 "Tercero": factura.get("nombretercero"),
-                "NIT": factura.get("nit"),
+                "Fecha Salida": factura.get("outdate"),
                 "Estado": factura.get("invoicestatus"),
-                "Id Factura": factura.get("idtransaction"),
-                "Id Transacción	": factura.get("idtransparking"),
                 "Serie": f"{factura.get('seriename')}-{factura.get('serienumber')}",
                 "Comercio": factura.get("namecommerce"),
             }
