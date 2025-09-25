@@ -29,29 +29,21 @@ with tab_andino:
             with st.spinner("🔎 Consultando facturas pendientes..."):
                 data = scraper.get_pending_invoices()
             st.subheader("📦 Facturas Pendientes")
-            if data:
-                st.table(data)
-            else:
-                st.warning("⚠️ No se encontraron facturas pendientes")
+            st.table(data) if data else st.warning("⚠️ No se encontraron facturas pendientes")
 
-            # Última actualización de Jobs
+            # Jobs
             with st.spinner("🛠 Consultando jobs..."):
                 jobs = scraper.get_jobs_config()
             st.subheader("🕒 ULTIMA ACTUALIZACIÓN DE JOBS")
-            if jobs:
-                st.table(jobs)
-            else:
-                st.warning("⚠️ No se encontraron jobs")
+            st.table(jobs) if jobs else st.warning("⚠️ No se encontraron jobs")
 
-            # Facturas (más reciente y total)
+            # Facturas recientes
             with st.spinner("🧾 Consultando facturas..."):
                 invoices = scraper.get_invoices()
             st.subheader("🧾 FACTURAS")
             if invoices and invoices.get("factura_reciente"):
                 st.metric("Total de facturas", invoices["total_facturas"])
-
                 factura = invoices["factura_reciente"]
-
                 campos_clave = {
                     "ID": factura.get("idinvoice"),
                     "Id Factura": factura.get("idtransaction"),
@@ -65,10 +57,7 @@ with tab_andino:
                     "CUFE": factura.get("cufe"),
                     "Factura": factura.get("id_unico"),
                 }
-
-                factura_df = pd.DataFrame([campos_clave])
-                st.dataframe(factura_df, use_container_width=True)
-
+                st.dataframe(pd.DataFrame([campos_clave]), use_container_width=True)
             else:
                 st.warning("⚠️ No se encontraron facturas")
 
@@ -81,7 +70,7 @@ with tab_bulevar:
     if st.button("Ejecutar scraping Bulevar"):
         scraper_b = FacturaBulevarScraper()
         with st.spinner("🔑 Iniciando sesión en Bulevar..."):
-            ok = scraper_b.login("admin@gopass.com", "gopass2023")
+            ok = scraper_b.login(USERNAME, PASSWORD)
         if not ok:
             st.error("❌ Error al iniciar sesión en Bulevar")
         else:
@@ -89,29 +78,21 @@ with tab_bulevar:
             with st.spinner("🔎 Consultando facturas pendientes..."):
                 data_b = scraper_b.get_pending_invoices()
             st.subheader("📦 Facturas Pendientes (Bulevar)")
-            if data_b:
-                st.table(data_b)
-            else:
-                st.warning("⚠️ No se encontraron facturas pendientes")
+            st.table(data_b) if data_b else st.warning("⚠️ No se encontraron facturas pendientes")
 
             # Jobs
             with st.spinner("🛠 Consultando jobs Bulevar..."):
                 jobs_b = scraper_b.get_jobs_config()
             st.subheader("🕒 ULTIMA ACTUALIZACIÓN DE JOBS (Bulevar)")
-            if jobs_b:
-                st.table(jobs_b)
-            else:
-                st.warning("⚠️ No se encontraron jobs")
+            st.table(jobs_b) if jobs_b else st.warning("⚠️ No se encontraron jobs")
 
-            # Facturas
+            # Facturas recientes
             with st.spinner("🧾 Consultando facturas Bulevar..."):
                 invoices_b = scraper_b.get_invoices()
             st.subheader("🧾 FACTURAS (Bulevar)")
             if invoices_b and invoices_b.get("factura_reciente"):
                 st.metric("Total de facturas (Bulevar)", invoices_b["total_facturas"])
-
                 factura_b = invoices_b["factura_reciente"]
-
                 campos_clave_b = {
                     "ID": factura_b.get("idinvoice"),
                     "Id Factura": factura_b.get("idtransaction"),
@@ -125,9 +106,6 @@ with tab_bulevar:
                     "CUFE": factura_b.get("cufe"),
                     "Factura": factura_b.get("id_unico"),
                 }
-
-                factura_df_b = pd.DataFrame([campos_clave_b])
-                st.dataframe(factura_df_b, use_container_width=True)
-
+                st.dataframe(pd.DataFrame([campos_clave_b]), use_container_width=True)
             else:
                 st.warning("⚠️ No se encontraron facturas")
