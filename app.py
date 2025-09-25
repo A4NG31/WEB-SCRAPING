@@ -14,10 +14,21 @@ if st.button("Ejecutar scraping"):
     if not ok:
         st.error("❌ Error al iniciar sesión")
     else:
+        # Facturas pendientes
         with st.spinner("🔎 Consultando facturas pendientes..."):
             data = scraper.get_pending_invoices()
+        st.subheader("📦 Facturas Pendientes")
         if data:
-            st.success("✅ Datos obtenidos")
             st.table(data)
         else:
             st.warning("⚠️ No se encontraron facturas pendientes")
+
+        # Última actualización de Jobs
+        with st.spinner("🛠 Consultando jobs..."):
+            jobs = scraper.get_jobs_config()
+        st.subheader("🕒 ULTIMA ACTUALIZACIÓN DE JOBS")
+        if jobs:
+            st.table(jobs)
+        else:
+            st.warning("⚠️ No se encontraron jobs")
+
