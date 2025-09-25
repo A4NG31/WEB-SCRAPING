@@ -40,7 +40,8 @@ class FacturaParkScraper:
             r = self.session.get(self.pending_api, timeout=10)
             if r.status_code != 200:
                 return []
-            rows = r.json().get("data", {}).get("rows", [])
+            j = r.json()
+            rows = j.get("data", {}).get("rows", [])
             return [
                 {
                     "comercio": row.get("name"),
@@ -57,15 +58,20 @@ class FacturaParkScraper:
             r = self.session.get(self.jobs_api, timeout=10)
             if r.status_code != 200:
                 return []
-            rows = r.json().get("data", {}).get("rows", [])
+            j = r.json()
+            rows = j.get("data", {}).get("rows", [])
             return [
-                {"nombre_job": row.get("jobname"), "ultima_actualizacion": row.get("updatedat")}
+                {
+                    "nombre_job": row.get("jobname"),
+                    "ultima_actualizacion": row.get("updatedat"),
+                }
                 for row in rows
             ]
         except Exception:
             return []
 
     def get_invoices(self) -> Dict[str, Any]:
+        """Devuelve la factura más reciente y el total de facturas."""
         try:
             r = self.session.get(self.invoices_api, timeout=15)
             if r.status_code != 200:
