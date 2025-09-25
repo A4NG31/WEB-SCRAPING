@@ -1,0 +1,14 @@
+
+---
+
+### ⚙️ `.streamlit/config.toml`
+```toml
+[theme]
+primaryColor="#0ea5a0"
+backgroundColor="#071428"
+secondaryBackgroundColor="#102a43"
+textColor="#FFFFFF"
+font="sans serif"
+
+[server]
+headless = true
