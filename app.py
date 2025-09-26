@@ -131,11 +131,13 @@ if st.session_state.get("scraping_done", False):
             if state["ok"]:
                 pendientes = len(state["data"]) if isinstance(state["data"], pd.DataFrame) else 0
                 total_hoy = state["invoices"]["total_facturas"] if state["invoices"] else 0
-                fecha_jobs = None
+                fecha_jobs = "Sin fecha"
                 if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
                     col = "FECHA DE ACTUALIZACIÓN" if name == "arkadia" else "updatedat"
                     if col in state["jobs"].columns:
-                        fecha_jobs = state["jobs"].iloc[0][col]
+                        primera = state["jobs"].iloc[0][col]
+                        if pd.notna(primera):
+                            fecha_jobs = str(primera)
                 mensaje += f"* {display_name} {'con ' + str(pendientes) + ' facturas pendientes' if pendientes else 'sin facturas pendientes'}, con {total_hoy} facturas del día de hoy, con sus Jobs actualizados ({fecha_jobs})\n\n"
         
         st.text_area("Mensaje generado", mensaje, height=300)
