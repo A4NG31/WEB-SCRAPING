@@ -10,24 +10,21 @@ class FacturaArkadiaScraper:
             "https://facturaelectronica.gopass.com.co/api/trns_invoices/pendingEmit"
             "?$top=10&$skip=0&$select=pending,idcomemrce,name&$orderby=idserietype%20asc&additionalQuery="
         )
-
-        # 🔹 Generar fecha de HOY dinámicamente
+        # ✅ URL de facturas siempre con la fecha del día en curso
         today = datetime.now().strftime("%Y-%m-%d")
         self.invoices_url = (
-            "https://facturaelectronica.gopass.com.co/api/trns_transparking/getcustom"
+            f"https://facturaelectronica.gopass.com.co/api/trns_transparking/getcustom"
             f"?$top=10&$skip=0&additionalQuery=t.transdate%20between%20%27{today}%2000%3A00%3A00%20-5%3A00%27"
             f"%20and%20%27{today}%2023:59:59%20-5:00%27&headers=false"
         )
-
         self.jobs_url = (
             "https://facturaelectronica.gopass.com.co/api/genc_jobsconfig"
             "?$top=10&$skip=0&$select=idjob,jobname,scheduletype,repeatinterval,maxconcurrent,"
-            "startdate,enddate,restartable,eventqueuename,jobpriority,runcount,maxruns,"
-            "failurecount,maxfailures,retrycount,laststartdate,lastrunduration,nextrundate,"
-            "maxrunduration,logginglevel,raiseevents,enabled,email,sms,createduser,createdat,"
-            "updateduser,updatedat&$orderby=idjob%20asc"
+            "startdate,enddate,restartable,eventqueuename,jobpriority,runcount,maxruns,failurecount,"
+            "maxfailures,retrycount,laststartdate,lastrunduration,nextrundate,maxrunduration,"
+            "logginglevel,raiseevents,enabled,email,sms,createduser,createdat,updateduser,updatedat"
+            "&$orderby=idjob%20asc"
         )
-
         self.session = requests.Session()
         self.token = None
 
@@ -69,9 +66,10 @@ class FacturaArkadiaScraper:
             resp = self.session.get(self.invoices_url)
             resp.raise_for_status()
             data = resp.json()
-            total_facturas = len(data.get("data", {}).get("rows", []))
-            factura_reciente = data.get("data", {}).get("rows", [{}])[0] if total_facturas > 0 else None
-            return {"total_facturas": total_facturas, "factura_reciente": factura_reciente}
+            total = int(data.get("data", {}).get("totalItems", 0))  # ✅ usar totalItems real
+            rows = data.get("data", {}).get("rows", [])
+            factura_reciente = rows[0] if rows else {}
+            return {"total_facturas": total, "factura_reciente": factura_reciente}
         except Exception as e:
             print(f"Error fetching invoices Arkadia: {e}")
-            return {"total_facturas": 0, "factura_reciente": None}
+            return {"total_facturas": 0, "factura_reciente": {}}
