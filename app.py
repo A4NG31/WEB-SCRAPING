@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
 st.title("📊 FacturaPark Scraper")
 
+# Usuarios y contraseñas desde secrets
 USERNAME = st.secrets["credentials"]["USERNAME"]
 PASSWORD = st.secrets["credentials"]["PASSWORD"]
 
@@ -37,15 +38,15 @@ if st.button("Ejecutar scraping de todos los centros comerciales"):
         with ThreadPoolExecutor() as executor:
             futures.append(executor.submit(run_scraper, "andino", FacturaParkScraper, USERNAME, PASSWORD))
             futures.append(executor.submit(run_scraper, "bulevar", FacturaBulevarScraper, USERNAME, PASSWORD))
-            futures.append(executor.submit(run_scraper, "fontanar", FacturaFontanarScraper, "admin@fontanar.com", "gopass2023"))
-            futures.append(executor.submit(run_scraper, "arkadia", FacturaArkadiaScraper, "skidata@gopass.com.co", "gopass2023"))
+            futures.append(executor.submit(run_scraper, "fontanar", FacturaFontanarScraper, USERNAME, PASSWORD))
+            futures.append(executor.submit(run_scraper, "arkadia", FacturaArkadiaScraper, ARKADIA_USER, ARKADIA_PASS))
 
             for future in as_completed(futures):
                 name, result = future.result()
                 st.session_state[name] = result
 
 # ===========================
-# TAB PESTAÑAS
+# PESTAÑAS
 # ===========================
 tab_andino, tab_bulevar, tab_fontanar, tab_arkadia = st.tabs([
     "🏢 Centro Comercial Andino", 
