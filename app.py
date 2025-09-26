@@ -241,11 +241,11 @@ if st.session_state.get("scraping_done", False):
         }.items():
             state = st.session_state[name]
             if state["ok"]:
-                # ✅ Pendientes
                 pendientes = 0
                 data = state["data"]
 
-                if name == "arkadia":  # Arkadia usa columna "pending"
+                # ✅ Diferenciamos Arkadia vs los demás
+                if name == "arkadia":
                     if isinstance(data, pd.DataFrame) and not data.empty:
                         if "pending" in data.columns:
                             pendientes = data.iloc[0]["pending"]
@@ -253,16 +253,16 @@ if st.session_state.get("scraping_done", False):
                             pendientes = data.iloc[0]["total_pendientes"]
                     elif isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
                         pendientes = data[0].get("pending") or data[0].get("total_pendientes", 0)
-                else:  # Otros: cantidad de filas
-                    if isinstance(data, pd.DataFrame):
-                        pendientes = len(data)
-                    elif isinstance(data, list):
-                        pendientes = len(data)
+                else:  # Andino, Bulevar y Fontanar usan "total_pendientes"
+                    if isinstance(data, pd.DataFrame) and not data.empty and "total_pendientes" in data.columns:
+                        pendientes = data.iloc[0]["total_pendientes"]
+                    elif isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+                        pendientes = data[0].get("total_pendientes", 0)
 
                 # Facturas hoy
                 total_hoy = state["invoices"]["total_facturas"] if state["invoices"] else 0
 
-                # Fecha jobs (Arkadia usa FECHA DE ACTUALIZACIÓN, otros usan ultima_actualizacion)
+                # Fecha jobs
                 fecha_jobs = "Sin fecha"
                 if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
                     if name == "arkadia" and "FECHA DE ACTUALIZACIÓN" in state["jobs"].columns:
