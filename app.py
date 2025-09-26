@@ -7,8 +7,74 @@ from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
  
-st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
+# ===========================
+# CONFIGURACIÓN GENERAL
+# ===========================
+st.set_page_config(page_title="FacturaPark Scraper", page_icon="🧾", layout="wide")
+
+# ===========================
+# ESTILOS CSS
+# ===========================
+st.markdown("""
+<style>
+body {
+    background-color: #f9fafc;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+h1 {
+    text-align: center;
+    color: #2c3e50;
+    font-weight: 700;
+}
+.stButton button {
+    background-color: #2ecc71;
+    color: white;
+    font-weight: bold;
+    border-radius: 12px;
+    padding: 10px 20px;
+    border: none;
+    transition: 0.3s;
+}
+.stButton button:hover {
+    background-color: #27ae60;
+}
+.block-container {
+    padding-top: 1rem;
+}
+.card {
+    background: white;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    border-radius: 15px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+.tab-header {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #34495e;
+    margin-bottom: 1rem;
+}
+.textarea-mensaje textarea {
+    background: #ecf0f1 !important;
+    color: #2c3e50 !important;
+    font-size: 1rem !important;
+    border-radius: 12px !important;
+    padding: 1rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Logo de GoPass con contenedor estilizado
+st.markdown("""
+<div class="logo-container">
+    <img src="https://i.imgur.com/z9xt46F.jpeg"
+         style="width: 60%; border-radius: 10px; display: block; margin: 0 auto;" 
+         alt="Logo Gopass">
+</div>
+""", unsafe_allow_html=True)
+
 st.title("📊 FacturaPark Scraper")
+
 
 # Credenciales
 USERNAME = st.secrets["credentials"]["USERNAME"]
