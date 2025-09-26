@@ -9,16 +9,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
 st.title("📊 FacturaPark Scraper")
 
-# Credenciales desde secrets
+# Credenciales
 USERNAME = st.secrets["credentials"]["USERNAME"]
 PASSWORD = st.secrets["credentials"]["PASSWORD"]
+
 ARKADIA_USER = st.secrets["arkadia"]["USERNAME"]
 ARKADIA_PASS = st.secrets["arkadia"]["PASSWORD"]
 
 # Inicializar session_state
 for key in ["andino", "bulevar", "fontanar", "arkadia"]:
     if key not in st.session_state:
-        st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
+        st.session_state[key] = {"ok": None, "data": None, "jobs": None, "invoices": None}
 
 def run_scraper(name, scraper_class, username, password):
     scraper = scraper_class()
@@ -44,7 +45,7 @@ if st.button("Ejecutar scraping de todos los centros comerciales"):
                 st.session_state[name] = result
 
 # ===========================
-# PESTAÑAS
+# TAB PESTAÑAS
 # ===========================
 tab_andino, tab_bulevar, tab_fontanar, tab_arkadia = st.tabs([
     "🏢 Centro Comercial Andino", 
@@ -56,8 +57,8 @@ tab_andino, tab_bulevar, tab_fontanar, tab_arkadia = st.tabs([
 def display_tab(name, display_name):
     st.header(f"🏢 {display_name}")
     state = st.session_state[name]
-
-    if state["ok"]:
+    
+    if state["ok"] is True:
         st.subheader("📦 Facturas Pendientes")
         data = state["data"]
         if isinstance(data, pd.DataFrame) and not data.empty:
@@ -93,7 +94,8 @@ def display_tab(name, display_name):
             st.dataframe(pd.DataFrame([campos_clave]), use_container_width=True)
         else:
             st.warning("⚠️ No se encontraron facturas")
-    elif state["ok"] == False:
+    
+    elif state["ok"] is False:
         st.error(f"❌ Error al iniciar sesión en {display_name}")
     else:
         st.info("Presiona 'Ejecutar scraping de todos los centros comerciales' para cargar datos.")
