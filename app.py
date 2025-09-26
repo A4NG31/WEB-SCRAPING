@@ -3,6 +3,7 @@ import pandas as pd
 from scraper import FacturaParkScraper
 from scraper_bulevar import FacturaBulevarScraper
 from scraper_fontanar import FacturaFontanarScraper
+from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
@@ -12,7 +13,7 @@ USERNAME = st.secrets["credentials"]["USERNAME"]
 PASSWORD = st.secrets["credentials"]["PASSWORD"]
 
 # Inicializar session_state
-for key in ["andino", "bulevar", "fontanar"]:
+for key in ["andino", "bulevar", "fontanar", "arkadia"]:
     if key not in st.session_state:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
 
@@ -33,6 +34,7 @@ if st.button("Ejecutar scraping de todos los centros comerciales"):
             futures.append(executor.submit(run_scraper, "andino", FacturaParkScraper, USERNAME, PASSWORD))
             futures.append(executor.submit(run_scraper, "bulevar", FacturaBulevarScraper, USERNAME, PASSWORD))
             futures.append(executor.submit(run_scraper, "fontanar", FacturaFontanarScraper, "admin@fontanar.com", "gopass2023"))
+            futures.append(executor.submit(run_scraper, "arkadia", FacturaArkadiaScraper, "skidata@gopass.com.co", "gopass2023"))
 
             for future in as_completed(futures):
                 name, result = future.result()
@@ -41,10 +43,11 @@ if st.button("Ejecutar scraping de todos los centros comerciales"):
 # ===========================
 # TAB PESTAÑAS
 # ===========================
-tab_andino, tab_bulevar, tab_fontanar = st.tabs([
+tab_andino, tab_bulevar, tab_fontanar, tab_arkadia = st.tabs([
     "🏢 Centro Comercial Andino", 
     "🏢 Centro Comercial Bulevar",
-    "🏢 Centro Comercial Fontanar"
+    "🏢 Centro Comercial Fontanar",
+    "🏢 Centro Comercial Arkadia"
 ])
 
 def display_tab(name, display_name):
@@ -97,3 +100,6 @@ with tab_bulevar:
 
 with tab_fontanar:
     display_tab("fontanar", "Centro Comercial Fontanar")
+
+with tab_arkadia:
+    display_tab("arkadia", "Centro Comercial Arkadia")
