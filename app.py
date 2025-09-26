@@ -59,14 +59,16 @@ def display_tab(name, display_name):
 
     if state["ok"]:
         st.subheader("📦 Facturas Pendientes")
-        if state["data"] is not None and not state["data"].empty:
-            st.table(state["data"])
+        data = state["data"]
+        if isinstance(data, pd.DataFrame) and not data.empty:
+            st.table(data)
         else:
             st.warning("⚠️ No se encontraron facturas pendientes")
 
         st.subheader("🕒 ULTIMA ACTUALIZACIÓN DE JOBS")
-        if state["jobs"] is not None and not state["jobs"].empty:
-            st.table(state["jobs"])
+        jobs = state["jobs"]
+        if isinstance(jobs, pd.DataFrame) and not jobs.empty:
+            st.table(jobs)
         else:
             st.warning("⚠️ No se encontraron jobs")
 
