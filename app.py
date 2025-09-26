@@ -5,6 +5,7 @@ from scraper_bulevar import FacturaBulevarScraper
 from scraper_fontanar import FacturaFontanarScraper
 from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
 st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
 st.title("📊 FacturaPark Scraper")
@@ -116,6 +117,17 @@ with tab_fontanar: display_tab("fontanar", "Centro Comercial Fontanar")
 with tab_arkadia: display_tab("arkadia", "Centro Comercial Arkadia")
 
 # ===========================
+# FUNCION PARA FORMATEAR FECHA
+# ===========================
+def formatear_fecha(fecha):
+    try:
+        if pd.notna(fecha) and fecha:
+            return pd.to_datetime(fecha).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return "Sin fecha"
+    return "Sin fecha"
+
+# ===========================
 # BOTÓN GENERAR MENSAJE WHATSAPP
 # ===========================
 if st.session_state.get("scraping_done", False):
@@ -137,12 +149,10 @@ if st.session_state.get("scraping_done", False):
                 fecha_jobs = "Sin fecha"
 
                 if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
-                    # Para Arkadia el campo real es "updatedat"
-                    if name == "arkadia" and "updatedat" in state["jobs"].columns:
-                        fecha_jobs = state["jobs"].iloc[0]["updatedat"]
-                    # Para Andino, Bulevar y Fontanar es "ultima_actualizacion"
+                    if name == "arkadia" and "FECHA DE ACTUALIZACIÓN" in state["jobs"].columns:
+                        fecha_jobs = formatear_fecha(state["jobs"].iloc[0]["FECHA DE ACTUALIZACIÓN"])
                     elif "ultima_actualizacion" in state["jobs"].columns:
-                        fecha_jobs = state["jobs"].iloc[0]["ultima_actualizacion"]
+                        fecha_jobs = formatear_fecha(state["jobs"].iloc[0]["ultima_actualizacion"])
 
                 mensaje += (
                     f"* {display_name} {'con ' + str(pendientes) + ' facturas pendientes' if pendientes else 'sin facturas pendientes'}, "
