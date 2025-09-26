@@ -12,6 +12,10 @@ st.title("📊 FacturaPark Scraper")
 USERNAME = st.secrets["credentials"]["USERNAME"]
 PASSWORD = st.secrets["credentials"]["PASSWORD"]
 
+# Arkadia
+ARKADIA_USER = st.secrets["arkadia"]["USERNAME"]
+ARKADIA_PASS = st.secrets["arkadia"]["PASSWORD"]
+
 # Inicializar session_state
 for key in ["andino", "bulevar", "fontanar", "arkadia"]:
     if key not in st.session_state:
