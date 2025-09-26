@@ -71,16 +71,35 @@ class FacturaParkScraper:
             return []
 
     def get_invoices(self) -> Dict[str, Any]:
-        """Devuelve la factura más reciente y el total de facturas."""
+        """Devuelve la factura más reciente y el total de facturas, con campos normalizados."""
         try:
             r = self.session.get(self.invoices_api, timeout=15)
             if r.status_code != 200:
                 return {}
             j = r.json()
-            total = j.get("data", {}).get("totalItems", 0)
+            total = int(j.get("data", {}).get("totalItems", 0))
             rows = j.get("data", {}).get("rows", [])
+
             if not rows:
                 return {"total_facturas": total, "factura_reciente": {}}
-            return {"total_facturas": total, "factura_reciente": rows[0]}
-        except Exception:
+
+            factura = rows[0]  # la más reciente (viene ordenada)
+
+            factura_normalizada = {
+                "idinvoice": factura.get("idinvoice"),
+                "idtransaction": factura.get("idtransaction"),
+                "idtransparking": factura.get("idtransparking"),
+                "fecha_factura": factura.get("transdate") or factura.get("fecha_factura"),
+                "valor_neto_factura": factura.get("valorneto") or factura.get("valor_neto_factura"),
+                "valor_factura": factura.get("valortotal") or factura.get("valor_factura"),
+                "nombretercero": factura.get("tercero") or factura.get("nombretercero"),
+                "outdate": factura.get("outdate"),
+                "invoicestatus": factura.get("invoicestatus"),
+                "cufe": factura.get("cufe"),
+                "id_unico": factura.get("id_unico") or factura.get("idinvoice"),
+            }
+
+            return {"total_facturas": total, "factura_reciente": factura_normalizada}
+        except Exception as e:
             return {}
+
