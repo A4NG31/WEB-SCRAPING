@@ -64,7 +64,7 @@ h1 {
 </style>
 """, unsafe_allow_html=True)
 
-# Logo
+# Logo de GoPass con contenedor estilizado
 st.markdown("""
 <div class="logo-container">
     <img src="https://i.imgur.com/z9xt46F.jpeg"
@@ -74,6 +74,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🧾 Validador Motores de Facturación")
+
 
 # Credenciales
 USERNAME = st.secrets["credentials"]["USERNAME"]
@@ -93,10 +94,34 @@ def run_scraper(name, scraper_class, username, password):
     ok = scraper.login(username, password)
     result = {"ok": ok, "data": None, "jobs": None, "invoices": None}
     if ok:
-        result["data"] = scraper.get_pending_invoices()
+        # Obtenemos datos según cada scraper
+        data = scraper.get_pending_invoices()
+        # --- CORRECCIÓN: convertir listas a DataFrame para que la UI las muestre ---
+        if isinstance(data, list):
+            try:
+                result["data"] = pd.DataFrame(data) if len(data) > 0 else pd.DataFrame()
+            except Exception:
+                # fallback: intentar construir DataFrame de forma segura
+                try:
+                    result["data"] = pd.DataFrame([data])
+                except Exception:
+                    result["data"] = pd.DataFrame()
+        elif isinstance(data, pd.DataFrame):
+            result["data"] = data
+        else:
+            # si el scraper devuelve dict o None, intentar transformar a DataFrame
+            try:
+                result["data"] = pd.DataFrame(data) if data else pd.DataFrame()
+            except Exception:
+                result["data"] = pd.DataFrame()
+
         jobs = scraper.get_jobs_config()
+        # Convertimos jobs a DataFrame si es lista
         if isinstance(jobs, list):
-            jobs = pd.DataFrame(jobs)
+            try:
+                jobs = pd.DataFrame(jobs) if len(jobs) > 0 else pd.DataFrame()
+            except Exception:
+                jobs = pd.DataFrame()
 
         # ✅ Filtro especial SOLO para Arkadia
         if name == "arkadia" and isinstance(jobs, pd.DataFrame) and not jobs.empty:
@@ -196,6 +221,7 @@ with tab_arkadia:
 # BOTÓN GENERAR MENSAJE WHATSAPP
 # ===========================
 def format_fecha(fecha):
+    """Convierte la fecha a formato dd/mm/yyyy HH:MM"""
     try:
         return pd.to_datetime(fecha).strftime("%d/%m/%Y %H:%M")
     except:
@@ -236,7 +262,7 @@ if st.session_state.get("scraping_done", False):
                 # Facturas hoy
                 total_hoy = state["invoices"]["total_facturas"] if state["invoices"] else 0
 
-                # Fecha jobs
+                # Fecha jobs (Arkadia usa FECHA DE ACTUALIZACIÓN, otros usan ultima_actualizacion)
                 fecha_jobs = "Sin fecha"
                 if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
                     if name == "arkadia" and "FECHA DE ACTUALIZACIÓN" in state["jobs"].columns:
