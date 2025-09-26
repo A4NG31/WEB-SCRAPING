@@ -64,7 +64,7 @@ h1 {
 </style>
 """, unsafe_allow_html=True)
 
-# Logo de GoPass con contenedor estilizado
+# Logo
 st.markdown("""
 <div class="logo-container">
     <img src="https://i.imgur.com/z9xt46F.jpeg"
@@ -74,7 +74,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🧾 Validador Motores de Facturación")
-
 
 # Credenciales
 USERNAME = st.secrets["credentials"]["USERNAME"]
@@ -94,10 +93,8 @@ def run_scraper(name, scraper_class, username, password):
     ok = scraper.login(username, password)
     result = {"ok": ok, "data": None, "jobs": None, "invoices": None}
     if ok:
-        # Obtenemos datos según cada scraper
         result["data"] = scraper.get_pending_invoices()
         jobs = scraper.get_jobs_config()
-        # Convertimos jobs a DataFrame si es lista
         if isinstance(jobs, list):
             jobs = pd.DataFrame(jobs)
 
@@ -199,7 +196,6 @@ with tab_arkadia:
 # BOTÓN GENERAR MENSAJE WHATSAPP
 # ===========================
 def format_fecha(fecha):
-    """Convierte la fecha a formato dd/mm/yyyy HH:MM"""
     try:
         return pd.to_datetime(fecha).strftime("%d/%m/%Y %H:%M")
     except:
@@ -219,34 +215,28 @@ if st.session_state.get("scraping_done", False):
         }.items():
             state = st.session_state[name]
             if state["ok"]:
-                # Pendientes: para Arkadia tomar valor de la columna 'pending' (o 'total_pendientes')
-                if name == "arkadia":
-                    pendientes = 0
-                    data = state["data"]
+                # ✅ Pendientes
+                pendientes = 0
+                data = state["data"]
+
+                if name == "arkadia":  # Arkadia usa columna "pending"
                     if isinstance(data, pd.DataFrame) and not data.empty:
                         if "pending" in data.columns:
                             pendientes = data.iloc[0]["pending"]
                         elif "total_pendientes" in data.columns:
                             pendientes = data.iloc[0]["total_pendientes"]
-                        else:
-                            pendientes = int(data.shape[0])
                     elif isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
-                        row0 = data[0]
-                        if "pending" in row0:
-                            pendientes = row0.get("pending")
-                        elif "total_pendientes" in row0:
-                            pendientes = row0.get("total_pendientes")
-                        else:
-                            pendientes = len(data)
-                    else:
-                        pendientes = 0
-                else:
-                    pendientes = len(state["data"]) if isinstance(state["data"], pd.DataFrame) else 0
+                        pendientes = data[0].get("pending") or data[0].get("total_pendientes", 0)
+                else:  # Otros: cantidad de filas
+                    if isinstance(data, pd.DataFrame):
+                        pendientes = len(data)
+                    elif isinstance(data, list):
+                        pendientes = len(data)
 
-                # Total facturas hoy
+                # Facturas hoy
                 total_hoy = state["invoices"]["total_facturas"] if state["invoices"] else 0
 
-                # Fecha jobs (Arkadia usa FECHA DE ACTUALIZACIÓN, otros usan ultima_actualizacion)
+                # Fecha jobs
                 fecha_jobs = "Sin fecha"
                 if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
                     if name == "arkadia" and "FECHA DE ACTUALIZACIÓN" in state["jobs"].columns:
