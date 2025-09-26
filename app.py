@@ -153,17 +153,34 @@ if st.session_state.get("scraping_done", False):
         }.items():
             state = st.session_state[name]
             if state["ok"]:
-                # ✅ Facturas pendientes
+                # Pendientes: para Arkadia tomar valor de la columna 'pending' (o 'total_pendientes')
                 if name == "arkadia":
-                    # Para Arkadia tomamos el valor del campo "pending"
-                    pendientes = state["invoices"].get("pending", 0) if state["invoices"] else 0
+                    pendientes = 0
+                    data = state["data"]
+                    if isinstance(data, pd.DataFrame) and not data.empty:
+                        if "pending" in data.columns:
+                            pendientes = data.iloc[0]["pending"]
+                        elif "total_pendientes" in data.columns:
+                            pendientes = data.iloc[0]["total_pendientes"]
+                        else:
+                            pendientes = int(data.shape[0])
+                    elif isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+                        row0 = data[0]
+                        if "pending" in row0:
+                            pendientes = row0.get("pending")
+                        elif "total_pendientes" in row0:
+                            pendientes = row0.get("total_pendientes")
+                        else:
+                            pendientes = len(data)
+                    else:
+                        pendientes = 0
                 else:
                     pendientes = len(state["data"]) if isinstance(state["data"], pd.DataFrame) else 0
 
-                # ✅ Facturas del día
+                # Total facturas hoy
                 total_hoy = state["invoices"]["total_facturas"] if state["invoices"] else 0
 
-                # ✅ Fecha de actualización
+                # Fecha jobs (Arkadia usa FECHA DE ACTUALIZACIÓN, otros usan ultima_actualizacion)
                 fecha_jobs = "Sin fecha"
                 if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
                     if name == "arkadia" and "FECHA DE ACTUALIZACIÓN" in state["jobs"].columns:
@@ -171,9 +188,8 @@ if st.session_state.get("scraping_done", False):
                     elif "ultima_actualizacion" in state["jobs"].columns:
                         fecha_jobs = format_fecha(state["jobs"].iloc[0]["ultima_actualizacion"])
 
-                # ✅ Construcción del mensaje
                 mensaje += (
-                    f"* {display_name} {'con ' + str(pendientes) + ' facturas pendientes' if pendientes else 'sin facturas pendientes'}, "
+                    f"* {display_name} {'con ' + str(pendientes) + ' facturas pendientes' if int(pendientes) else 'sin facturas pendientes'}, "
                     f"con {total_hoy} facturas del día de hoy, con sus Jobs actualizados ({fecha_jobs})\n\n"
                 )
         
