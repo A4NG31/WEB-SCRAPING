@@ -9,11 +9,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
 st.title("📊 FacturaPark Scraper")
 
-# Usuarios y contraseñas desde secrets
+# Credenciales desde secrets
 USERNAME = st.secrets["credentials"]["USERNAME"]
 PASSWORD = st.secrets["credentials"]["PASSWORD"]
-
-# Arkadia
 ARKADIA_USER = st.secrets["arkadia"]["USERNAME"]
 ARKADIA_PASS = st.secrets["arkadia"]["PASSWORD"]
 
@@ -58,15 +56,16 @@ tab_andino, tab_bulevar, tab_fontanar, tab_arkadia = st.tabs([
 def display_tab(name, display_name):
     st.header(f"🏢 {display_name}")
     state = st.session_state[name]
+
     if state["ok"]:
         st.subheader("📦 Facturas Pendientes")
-        if state["data"]:
+        if state["data"] is not None and not state["data"].empty:
             st.table(state["data"])
         else:
             st.warning("⚠️ No se encontraron facturas pendientes")
 
         st.subheader("🕒 ULTIMA ACTUALIZACIÓN DE JOBS")
-        if state["jobs"]:
+        if state["jobs"] is not None and not state["jobs"].empty:
             st.table(state["jobs"])
         else:
             st.warning("⚠️ No se encontraron jobs")
