@@ -73,7 +73,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.title("📊 FacturaPark Scraper")
+st.title("🧾 Validador Motores de Facturación")
 
 
 # Credenciales
