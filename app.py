@@ -153,16 +153,25 @@ if st.session_state.get("scraping_done", False):
         }.items():
             state = st.session_state[name]
             if state["ok"]:
-                pendientes = len(state["data"]) if isinstance(state["data"], pd.DataFrame) else 0
-                total_hoy = state["invoices"]["total_facturas"] if state["invoices"] else 0
-                fecha_jobs = "Sin fecha"
+                # ✅ Facturas pendientes
+                if name == "arkadia":
+                    # Para Arkadia tomamos el valor del campo "pending"
+                    pendientes = state["invoices"].get("pending", 0) if state["invoices"] else 0
+                else:
+                    pendientes = len(state["data"]) if isinstance(state["data"], pd.DataFrame) else 0
 
+                # ✅ Facturas del día
+                total_hoy = state["invoices"]["total_facturas"] if state["invoices"] else 0
+
+                # ✅ Fecha de actualización
+                fecha_jobs = "Sin fecha"
                 if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
                     if name == "arkadia" and "FECHA DE ACTUALIZACIÓN" in state["jobs"].columns:
                         fecha_jobs = format_fecha(state["jobs"].iloc[0]["FECHA DE ACTUALIZACIÓN"])
                     elif "ultima_actualizacion" in state["jobs"].columns:
                         fecha_jobs = format_fecha(state["jobs"].iloc[0]["ultima_actualizacion"])
 
+                # ✅ Construcción del mensaje
                 mensaje += (
                     f"* {display_name} {'con ' + str(pendientes) + ' facturas pendientes' if pendientes else 'sin facturas pendientes'}, "
                     f"con {total_hoy} facturas del día de hoy, con sus Jobs actualizados ({fecha_jobs})\n\n"
