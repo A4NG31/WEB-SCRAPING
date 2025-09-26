@@ -30,11 +30,26 @@ def run_scraper(name, scraper_class, username, password):
         # Obtenemos datos según cada scraper
         result["data"] = scraper.get_pending_invoices()
         jobs = scraper.get_jobs_config()
-        # Convertimos jobs a DataFrame si no lo es
-        if isinstance(jobs, list):
-            result["jobs"] = pd.DataFrame(jobs)
+
+        # Filtrar y renombrar jobs de Arkadia
+        if name == "arkadia" and isinstance(jobs, dict) and "data" in jobs and "rows" in jobs["data"]:
+            rows = jobs["data"]["rows"]
+            jobs_df = pd.DataFrame(rows)
+            jobs_df = jobs_df[["jobname", "raiseevents", "enabled", "updatedat"]]
+            jobs_df.rename(columns={
+                "jobname": "NOMBRE",
+                "raiseevents": "AUMENTO DE EVENTOS",
+                "enabled": "HABILITADO",
+                "updatedat": "FECHA DE ACTUALIZACIÓN"
+            }, inplace=True)
+            result["jobs"] = jobs_df
         else:
-            result["jobs"] = jobs
+            # Otros scrapers: convertir lista a DataFrame si es necesario
+            if isinstance(jobs, list):
+                result["jobs"] = pd.DataFrame(jobs)
+            else:
+                result["jobs"] = jobs
+
         result["invoices"] = scraper.get_invoices()
     return name, result
 
