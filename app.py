@@ -137,8 +137,10 @@ if st.session_state.get("scraping_done", False):
                 fecha_jobs = "Sin fecha"
 
                 if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
-                    if name == "arkadia" and "FECHA DE ACTUALIZACIÓN" in state["jobs"].columns:
-                        fecha_jobs = state["jobs"].iloc[0]["FECHA DE ACTUALIZACIÓN"]
+                    # Para Arkadia el campo real es "updatedat"
+                    if name == "arkadia" and "updatedat" in state["jobs"].columns:
+                        fecha_jobs = state["jobs"].iloc[0]["updatedat"]
+                    # Para Andino, Bulevar y Fontanar es "ultima_actualizacion"
                     elif "ultima_actualizacion" in state["jobs"].columns:
                         fecha_jobs = state["jobs"].iloc[0]["ultima_actualizacion"]
 
