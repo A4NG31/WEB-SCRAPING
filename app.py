@@ -27,18 +27,24 @@ def run_scraper(name, scraper_class, username, password):
     ok = scraper.login(username, password)
     result = {"ok": ok, "data": None, "jobs": None, "invoices": None}
     if ok:
+        # Obtenemos datos según cada scraper
         result["data"] = scraper.get_pending_invoices()
         jobs = scraper.get_jobs_config()
-        if name == "arkadia" and isinstance(jobs, list):
-            df = pd.DataFrame(jobs)
-            result["jobs"] = df.rename(columns={
+        # Convertimos jobs a DataFrame si es lista
+        if isinstance(jobs, list):
+            jobs = pd.DataFrame(jobs)
+
+        # ✅ Filtro especial SOLO para Arkadia
+        if name == "arkadia" and isinstance(jobs, pd.DataFrame) and not jobs.empty:
+            jobs = jobs.rename(columns={
                 "jobname": "NOMBRE",
                 "raiseevents": "AUMENTO DE EVENTOS",
                 "enabled": "HABILITADO",
                 "updatedat": "FECHA DE ACTUALIZACIÓN"
-            })[["NOMBRE", "AUMENTO DE EVENTOS", "HABILITADO", "FECHA DE ACTUALIZACIÓN"]]
-        else:
-            result["jobs"] = pd.DataFrame(jobs) if isinstance(jobs, list) else jobs
+            })
+            jobs = jobs[["NOMBRE", "AUMENTO DE EVENTOS", "HABILITADO", "FECHA DE ACTUALIZACIÓN"]]
+
+        result["jobs"] = jobs
         result["invoices"] = scraper.get_invoices()
     return name, result
 
@@ -54,8 +60,6 @@ if st.button("Ejecutar scraping de todos los centros comerciales"):
             for future in as_completed(futures):
                 name, result = future.result()
                 st.session_state[name] = result
-
-    st.session_state["scraping_done"] = True  # Indicador de que ya se ejecutó scraping
 
 # ===========================
 # TAB PESTAÑAS
@@ -110,34 +114,14 @@ def display_tab(name, display_name):
     else:
         st.info("Presiona 'Ejecutar scraping de todos los centros comerciales' para cargar datos.")
 
-with tab_andino: display_tab("andino", "Centro Comercial Andino")
-with tab_bulevar: display_tab("bulevar", "Centro Comercial Bulevar")
-with tab_fontanar: display_tab("fontanar", "Centro Comercial Fontanar")
-with tab_arkadia: display_tab("arkadia", "Centro Comercial Arkadia")
+with tab_andino:
+    display_tab("andino", "Centro Comercial Andino")
 
-# ===========================
-# BOTÓN GENERAR MENSAJE WHATSAPP
-# ===========================
-if st.session_state.get("scraping_done", False):
-    if st.button("📩 Generar mensaje de WhatsApp"):
-        mensaje = "Buenas tardes, se realiza informe de facturación electrónica, al momento no contamos con facturación pendiente.\n\nSe realiza de igual forma revisión de motores FE:\n\n"
-        for name, display_name in {
-            "andino": "Motor Andino",
-            "bulevar": "Motor Bulevar",
-            "fontanar": "Motor Fontanar",
-            "arkadia": "Motor Arkadia"
-        }.items():
-            state = st.session_state[name]
-            if state["ok"]:
-                pendientes = len(state["data"]) if isinstance(state["data"], pd.DataFrame) else 0
-                total_hoy = state["invoices"]["total_facturas"] if state["invoices"] else 0
-                fecha_jobs = "Sin fecha"
-                if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
-                    col = "FECHA DE ACTUALIZACIÓN" if name == "arkadia" else "updatedat"
-                    if col in state["jobs"].columns:
-                        primera = state["jobs"].iloc[0][col]
-                        if pd.notna(primera):
-                            fecha_jobs = str(primera)
-                mensaje += f"* {display_name} {'con ' + str(pendientes) + ' facturas pendientes' if pendientes else 'sin facturas pendientes'}, con {total_hoy} facturas del día de hoy, con sus Jobs actualizados ({fecha_jobs})\n\n"
-        
-        st.text_area("Mensaje generado", mensaje, height=300)
+with tab_bulevar:
+    display_tab("bulevar", "Centro Comercial Bulevar")
+
+with tab_fontanar:
+    display_tab("fontanar", "Centro Comercial Fontanar")
+
+with tab_arkadia:
+    display_tab("arkadia", "Centro Comercial Arkadia")
