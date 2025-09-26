@@ -5,6 +5,7 @@ from scraper_bulevar import FacturaBulevarScraper
 from scraper_fontanar import FacturaFontanarScraper
 from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
  
 st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
 st.title("📊 FacturaPark Scraper")
@@ -60,6 +61,8 @@ if st.button("Ejecutar scraping de todos los centros comerciales"):
             for future in as_completed(futures):
                 name, result = future.result()
                 st.session_state[name] = result
+
+    st.session_state["scraping_done"] = True
 
 # ===========================
 # TAB PESTAÑAS
@@ -125,3 +128,44 @@ with tab_fontanar:
 
 with tab_arkadia:
     display_tab("arkadia", "Centro Comercial Arkadia")
+
+# ===========================
+# BOTÓN GENERAR MENSAJE WHATSAPP
+# ===========================
+def format_fecha(fecha):
+    """Convierte la fecha a formato dd/mm/yyyy HH:MM"""
+    try:
+        return pd.to_datetime(fecha).strftime("%d/%m/%Y %H:%M")
+    except:
+        return str(fecha)
+
+if st.session_state.get("scraping_done", False):
+    if st.button("📩 Generar mensaje de WhatsApp"):
+        mensaje = (
+            "Buenas tardes, se realiza informe de facturación electrónica, al momento no contamos con facturación pendiente.\n\n"
+            "Se realiza de igual forma revisión de motores FE:\n\n"
+        )
+        for name, display_name in {
+            "andino": "Motor Andino",
+            "bulevar": "Motor Bulevar",
+            "fontanar": "Motor Fontanar",
+            "arkadia": "Motor Arkadia"
+        }.items():
+            state = st.session_state[name]
+            if state["ok"]:
+                pendientes = len(state["data"]) if isinstance(state["data"], pd.DataFrame) else 0
+                total_hoy = state["invoices"]["total_facturas"] if state["invoices"] else 0
+                fecha_jobs = "Sin fecha"
+
+                if isinstance(state["jobs"], pd.DataFrame) and not state["jobs"].empty:
+                    if name == "arkadia" and "FECHA DE ACTUALIZACIÓN" in state["jobs"].columns:
+                        fecha_jobs = format_fecha(state["jobs"].iloc[0]["FECHA DE ACTUALIZACIÓN"])
+                    elif "ultima_actualizacion" in state["jobs"].columns:
+                        fecha_jobs = format_fecha(state["jobs"].iloc[0]["ultima_actualizacion"])
+
+                mensaje += (
+                    f"* {display_name} {'con ' + str(pendientes) + ' facturas pendientes' if pendientes else 'sin facturas pendientes'}, "
+                    f"con {total_hoy} facturas del día de hoy, con sus Jobs actualizados ({fecha_jobs})\n\n"
+                )
+        
+        st.text_area("Mensaje generado", mensaje, height=300)
