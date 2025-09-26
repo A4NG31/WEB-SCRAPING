@@ -9,12 +9,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
 st.title("📊 FacturaPark Scraper")
 
-# Credenciales
+# Credenciales desde secrets
 USERNAME = st.secrets["credentials"]["USERNAME"]
 PASSWORD = st.secrets["credentials"]["PASSWORD"]
 
 ARKADIA_USER = st.secrets["arkadia"]["USERNAME"]
 ARKADIA_PASS = st.secrets["arkadia"]["PASSWORD"]
+
+FONTANAR_USER = st.secrets["Fontanar"]["USERNAME"]
+FONTANAR_PASS = st.secrets["Fontanar"]["PASSWORD"]
 
 # Inicializar session_state
 for key in ["andino", "bulevar", "fontanar", "arkadia"]:
@@ -37,7 +40,7 @@ if st.button("Ejecutar scraping de todos los centros comerciales"):
         with ThreadPoolExecutor() as executor:
             futures.append(executor.submit(run_scraper, "andino", FacturaParkScraper, USERNAME, PASSWORD))
             futures.append(executor.submit(run_scraper, "bulevar", FacturaBulevarScraper, USERNAME, PASSWORD))
-            futures.append(executor.submit(run_scraper, "fontanar", FacturaFontanarScraper, USERNAME, PASSWORD))
+            futures.append(executor.submit(run_scraper, "fontanar", FacturaFontanarScraper, FONTANAR_USER, FONTANAR_PASS))
             futures.append(executor.submit(run_scraper, "arkadia", FacturaArkadiaScraper, ARKADIA_USER, ARKADIA_PASS))
 
             for future in as_completed(futures):
