@@ -1,5 +1,14 @@
 import requests
 from typing import List, Dict, Any
+from datetime import datetime, timedelta
+from urllib.parse import quote
+
+try:
+    from zoneinfo import ZoneInfo
+    BOGOTA_TZ = ZoneInfo("America/Bogota")
+except Exception:
+    BOGOTA_TZ = None
+
 
 class FacturaFontanarScraper:
     def __init__(self):
@@ -10,36 +19,37 @@ class FacturaFontanarScraper:
         )
         self.jobs_api = (
             "https://facturafontanar.gopass.com.co/api/genc_jobsconfig"
-            "?$top=10&$skip=0&$select=idjob,jobname,scheduletype,repeatinterval,maxconcurrent,startdate,enddate,restartable,eventqueuename,jobpriority,runcount,maxruns,failurecount,maxfailures,retrycount,laststartdate,lastrunduration,nextrundate,maxrunduration,logginglevel,raiseevents,enabled,email,sms,createduser,createdat,updateduser,updatedat&$orderby=idjob%20asc"
-        )
-        self.invoices_api = (
-            "https://facturafontanar.gopass.com.co/api/trns_transparking/getcustom"
-            "?$top=10&$skip=0&additionalQuery=t.transdate%20between%20%272025-09-26%2000%3A00%3A00%20-5%3A00%27"
-            "%20and%20%272025-09-26%2023:59:59%20-5:00%27&headers=false"
+            "?$top=10&$skip=0&$select=jobname,laststartdate,updatedat&$orderby=idjob%20asc"
         )
         self.session = requests.Session()
 
+    def _invoices_url_for_date(self, date_obj: datetime.date) -> str:
+        start = f"{date_obj.strftime('%Y-%m-%d')} 00:00:00 -5:00"
+        end = f"{date_obj.strftime('%Y-%m-%d')} 23:59:59 -5:00"
+        query = f"t.transdate between '{start}' and '{end}'"
+        encoded = quote(query, safe="")
+        return (
+            "https://facturafontanar.gopass.com.co/api/trns_transparking/getcustom"
+            f"?$top=10&$skip=0&additionalQuery={encoded}&headers=false"
+        )
+
     def login(self, username: str, password: str) -> bool:
-        payload = {"email": username, "password": password}
-        headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
         try:
-            r = self.session.post(self.login_endpoint, json=payload, headers=headers, timeout=10)
+            payload = {"email": username, "password": password}
+            r = self.session.post(self.login_endpoint, json=payload, timeout=10)
             if r.status_code != 200:
                 return False
-            j = r.json()
-            token = j.get("tokens", {}).get("access", {}).get("token")
+            token = r.json().get("tokens", {}).get("access", {}).get("token")
             if token:
                 self.session.headers.update({"Authorization": f"Bearer {token}"})
                 return True
-            return False
         except Exception:
-            return False
+            pass
+        return False
 
     def get_pending_invoices(self) -> List[Dict]:
         try:
             r = self.session.get(self.pending_api, timeout=10)
-            if r.status_code != 200:
-                return []
             rows = r.json().get("data", {}).get("rows", [])
             return [
                 {"comercio": row.get("name"), "total_pendientes": row.get("pending"), "id_comercio": row.get("idcommerce")}
@@ -51,26 +61,36 @@ class FacturaFontanarScraper:
     def get_jobs_config(self) -> List[Dict]:
         try:
             r = self.session.get(self.jobs_api, timeout=10)
-            if r.status_code != 200:
-                return []
             rows = r.json().get("data", {}).get("rows", [])
-            return [
-                {"nombre_job": row.get("jobname"), "ultima_actualizacion": row.get("laststartdate")}
-                for row in rows
-            ]
+            return [{"nombre_job": row.get("jobname"), "ultima_actualizacion": row.get("laststartdate") or row.get("updatedat")} for row in rows]
         except Exception:
             return []
 
     def get_invoices(self) -> Dict[str, Any]:
         try:
-            r = self.session.get(self.invoices_api, timeout=15)
-            if r.status_code != 200:
-                return {}
+            now = datetime.now(BOGOTA_TZ) if BOGOTA_TZ else datetime.utcnow() - timedelta(hours=5)
+            url = self._invoices_url_for_date(now.date())
+            r = self.session.get(url, timeout=20)
             j = r.json()
-            total = j.get("data", {}).get("totalItems", 0)
+            total = int(j.get("data", {}).get("totalItems", 0))
             rows = j.get("data", {}).get("rows", [])
             if not rows:
                 return {"total_facturas": total, "factura_reciente": {}}
-            return {"total_facturas": total, "factura_reciente": rows[0]}
+
+            f = rows[0]
+            factura = {
+                "idinvoice": f.get("idinvoice") or f.get("id"),
+                "idtransaction": f.get("idtransaction"),
+                "idtransparking": f.get("idtransparking"),
+                "fecha_factura": f.get("transdate") or f.get("fecha_factura"),
+                "valor_neto_factura": f.get("valorneto") or f.get("netvalue"),
+                "valor_factura": f.get("valortotal") or f.get("totalvalue"),
+                "nombretercero": f.get("tercero") or f.get("nombretercero") or f.get("name"),
+                "outdate": f.get("outdate"),
+                "invoicestatus": f.get("invoicestatus"),
+                "cufe": f.get("cufe"),
+                "id_unico": f.get("id_unico") or f.get("idinvoice") or f.get("id"),
+            }
+            return {"total_facturas": total, "factura_reciente": factura}
         except Exception:
             return {}
