@@ -113,7 +113,7 @@ def display_tab(name, display_name):
         else:
             st.warning("⚠️ No se encontraron facturas")
     elif state["ok"] == False:
-        st.error(f"❌ Error al iniciar sesión en {display_name}")
+        st.info(f" 👆 Oprime el boton para inciar el proceso ")
     else:
         st.info("Presiona 'Ejecutar scraping de todos los centros comerciales' para cargar datos.")
 
