@@ -5,7 +5,7 @@ from scraper_bulevar import FacturaBulevarScraper
 from scraper_fontanar import FacturaFontanarScraper
 from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+ 
 st.set_page_config(page_title="FacturaPark Scraper", page_icon="📊", layout="wide")
 st.title("📊 FacturaPark Scraper")
 
