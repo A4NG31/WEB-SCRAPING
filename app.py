@@ -230,7 +230,7 @@ def format_fecha(fecha):
 if st.session_state.get("scraping_done", False):
     if st.button("📩 Generar mensaje de WhatsApp"):
         mensaje = (
-            "Buenas tardes, se realiza informe de facturación electrónica, al momento no contamos con facturación pendiente.\n\n"
+            "Buen dia, se realiza informe de facturación electrónica, al momento no contamos con facturación pendiente.\n\n"
             "Se realiza de igual forma revisión de motores FE:\n\n"
         )
         for name, display_name in {
