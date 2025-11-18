@@ -94,7 +94,7 @@ for key in ["andino", "bulevar", "fontanar", "arkadia"]:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
 
 def get_powerbi_data():
-    """Obtiene los datos de facturas sin CUFE del reporte de Power BI con múltiples estrategias"""
+    """Obtiene los datos de facturas sin CUFE del reporte de Power BI"""
     try:
         POWERBI_URL = "https://app.powerbi.com/view?r=eyJrIjoiMjUyNTBjMTItOWZlNy00YTY2LWIzMTQtNmM3OGU4ZWM1ZmQxIiwidCI6ImY5MTdlZDFiLWI0MDMtNDljNS1iODBiLWJhYWUzY2UwMzc1YSJ9"
         
@@ -124,169 +124,107 @@ def get_powerbi_data():
         # Parsear el HTML
         soup = BeautifulSoup(response.content, 'html.parser')
         
+        # ESTRATEGIA DIRECTA: Buscar específicamente la tabla con "Parqueaderos" y "Peajes"
+        st.info("🔍 Buscando tabla específica...")
+        
+        # Buscar todos los textos que contengan "Parqueaderos" o "Peajes"
+        all_texts = soup.find_all(text=True)
+        
         parqueaderos = None
         peajes = None
         
-        # ESTRATEGIA 1: Buscar en scripts que contengan datos estructurados
-        st.info("🔍 Buscando datos en scripts...")
-        scripts = soup.find_all('script')
-        
-        for i, script in enumerate(scripts):
-            if script.string:
-                script_content = script.string
+        for text in all_texts:
+            text_clean = text.strip()
+            if not text_clean:
+                continue
                 
-                # Buscar datos en formato JSON
-                if 'Parqueaderos' in script_content or 'Peajes' in script_content:
-                    # Intentar encontrar objetos JSON
-                    json_patterns = [
-                        r'\{[^{}]*["\']?Parqueaderos["\']?\s*:\s*["\']?(\d+)["\']?[^{}]*\}',
-                        r'\{[^{}]*["\']?Peajes["\']?\s*:\s*["\']?(\d+)["\']?[^{}]*\}',
-                    ]
-                    
-                    for pattern in json_patterns:
-                        matches = re.finditer(pattern, script_content)
-                        for match in matches:
-                            json_str = match.group(0)
-                            if 'Parqueaderos' in json_str and parqueaderos is None:
-                                num_match = re.search(r'"Parqueaderos"\s*:\s*"(\d+)"', json_str)
-                                if num_match:
-                                    parqueaderos = int(num_match.group(1))
-                                    st.success(f"✅ Parqueaderos encontrado en JSON: {parqueaderos}")
-                            
-                            if 'Peajes' in json_str and peajes is None:
-                                num_match = re.search(r'"Peajes"\s*:\s*"(\d+)"', json_str)
-                                if num_match:
-                                    peajes = int(num_match.group(1))
-                                    st.success(f"✅ Peajes encontrado en JSON: {peajes}")
-        
-        # ESTRATEGIA 2: Buscar en elementos visuales específicos de Power BI
-        st.info("🔍 Buscando en elementos visuales...")
-        
-        # Power BI usa divs con clases específicas para visualizaciones
-        powerbi_elements = soup.find_all(['div', 'span', 'td', 'li'])
-        
-        for element in powerbi_elements:
-            element_text = element.get_text(strip=True)
+            # Si encontramos "Parqueaderos", buscar el número asociado
+            if 'Parqueaderos' in text_clean and parqueaderos is None:
+                # Buscar patrones como "Parqueaderos 430"
+                match = re.search(r'Parqueaderos\s+(\d+)', text_clean)
+                if match:
+                    parqueaderos = int(match.group(1))
+                    st.success(f"✅ Parqueaderos encontrado: {parqueaderos}")
+                else:
+                    # Buscar en el contexto del elemento
+                    parent = text.parent
+                    if parent:
+                        # Buscar números en elementos hermanos
+                        siblings = parent.find_all(text=True)
+                        for sibling in siblings:
+                            sibling_clean = sibling.strip()
+                            if sibling_clean.isdigit() and sibling != text:
+                                parqueaderos = int(sibling_clean)
+                                st.success(f"✅ Parqueaderos encontrado en contexto: {parqueaderos}")
+                                break
             
-            # Buscar patrones específicos de tabla
-            if 'Parqueaderos' in element_text and parqueaderos is None:
-                # Buscar el número asociado
-                parent = element.parent
-                if parent:
-                    siblings = parent.find_all(['div', 'span', 'td'])
-                    for sibling in siblings:
-                        sibling_text = sibling.get_text(strip=True)
-                        if sibling_text.isdigit() and sibling != element:
-                            parqueaderos = int(sibling_text)
-                            st.success(f"✅ Parqueaderos encontrado en elemento hermano: {parqueaderos}")
-                            break
-                
-                # Buscar en el mismo texto
-                numbers = re.findall(r'Parqueaderos\s*(\d+)', element_text)
-                if numbers:
-                    parqueaderos = int(numbers[0])
-                    st.success(f"✅ Parqueaderos encontrado en mismo elemento: {parqueaderos}")
-            
-            if 'Peajes' in element_text and peajes is None:
-                parent = element.parent
-                if parent:
-                    siblings = parent.find_all(['div', 'span', 'td'])
-                    for sibling in siblings:
-                        sibling_text = sibling.get_text(strip=True)
-                        if sibling_text.isdigit() and sibling != element:
-                            peajes = int(sibling_text)
-                            st.success(f"✅ Peajes encontrado en elemento hermano: {peajes}")
-                            break
-                
-                numbers = re.findall(r'Peajes\s*(\d+)', element_text)
-                if numbers:
-                    peajes = int(numbers[0])
-                    st.success(f"✅ Peajes encontrado en mismo elemento: {peajes}")
+            # Si encontramos "Peajes", buscar el número asociado
+            if 'Peajes' in text_clean and peajes is None:
+                match = re.search(r'Peajes\s+(\d+)', text_clean)
+                if match:
+                    peajes = int(match.group(1))
+                    st.success(f"✅ Peajes encontrado: {peajes}")
+                else:
+                    parent = text.parent
+                    if parent:
+                        siblings = parent.find_all(text=True)
+                        for sibling in siblings:
+                            sibling_clean = sibling.strip()
+                            if sibling_clean.isdigit() and sibling != text:
+                                peajes = int(sibling_clean)
+                                st.success(f"✅ Peajes encontrado en contexto: {peajes}")
+                                break
         
-        # ESTRATEGIA 3: Buscar en tablas específicamente
-        st.info("🔍 Buscando en tablas...")
-        tables = soup.find_all('table')
-        
-        for table in tables:
-            rows = table.find_all('tr')
-            for row in rows:
-                cells = [cell.get_text(strip=True) for cell in row.find_all(['td', 'th'])]
-                
-                for i, cell in enumerate(cells):
-                    if 'Parqueaderos' in cell and parqueaderos is None:
-                        # Buscar en celdas adyacentes
-                        if i + 1 < len(cells) and cells[i + 1].isdigit():
-                            parqueaderos = int(cells[i + 1])
-                            st.success(f"✅ Parqueaderos encontrado en tabla: {parqueaderos}")
-                    
-                    if 'Peajes' in cell and peajes is None:
-                        if i + 1 < len(cells) and cells[i + 1].isdigit():
-                            peajes = int(cells[i + 1])
-                            st.success(f"✅ Peajes encontrado en tabla: {peajes}")
-        
-        # ESTRATEGIA 4: Buscar en todo el texto de la página
-        st.info("🔍 Buscando en todo el contenido...")
-        all_text = soup.get_text()
-        
-        # Buscar patrones específicos
-        patterns = [
-            r'Parqueaderos\s*:\s*(\d+)',
-            r'Parqueaderos\s+(\d+)',
-            r'"Parqueaderos"\s*:\s*"(\d+)"',
-            r'Parqueaderos["\']\s*,\s*["\']?(\d+)',
-        ]
-        
-        for pattern in patterns:
-            if parqueaderos is None:
-                matches = re.findall(pattern, all_text)
-                if matches:
-                    parqueaderos = int(matches[0])
-                    st.success(f"✅ Parqueaderos encontrado con patrón {pattern}: {parqueaderos}")
-                    break
-        
-        patterns_peajes = [
-            r'Peajes\s*:\s*(\d+)',
-            r'Peajes\s+(\d+)',
-            r'"Peajes"\s*:\s*"(\d+)"',
-            r'Peajes["\']\s*,\s*["\']?(\d+)',
-        ]
-        
-        for pattern in patterns_peajes:
-            if peajes is None:
-                matches = re.findall(pattern, all_text)
-                if matches:
-                    peajes = int(matches[0])
-                    st.success(f"✅ Peajes encontrado con patrón {pattern}: {peajes}")
-                    break
-        
-        # ESTRATEGIA 5: Si no encontramos, mostrar error específico
+        # ESTRATEGIA ALTERNATIVA: Buscar en estructuras de tabla específicas
         if parqueaderos is None or peajes is None:
-            st.error("❌ No se pudieron encontrar los datos en Power BI")
-            st.info("""
-            **Posibles causas:**
-            - El Power BI requiere autenticación
-            - Los datos se cargan dinámicamente con JavaScript
-            - La estructura del reporte cambió
+            st.info("🔍 Buscando en estructuras de tabla...")
             
-            **Solución temporal:**
-            Por favor ingresa los valores manualmente:
-            """)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                parqueaderos = st.number_input("Parqueaderos sin CUFE", min_value=0, value=0, key="parq_input")
-            with col2:
-                peajes = st.number_input("Peajes sin CUFE", min_value=0, value=0, key="peajes_input")
-            
-            if st.button("Usar valores manuales"):
-                return {
-                    "parqueaderos": parqueaderos,
-                    "peajes": peajes
-                }
-            else:
-                # Esperar a que el usuario ingrese los valores
-                st.stop()
+            # Buscar divs que puedan contener la tabla
+            divs = soup.find_all('div')
+            for div in divs:
+                div_text = div.get_text(strip=True)
+                if 'Parqueaderos' in div_text and 'Peajes' in div_text:
+                    # Extraer todos los números de este div
+                    numbers = re.findall(r'\d+', div_text)
+                    if len(numbers) >= 2:
+                        # Asumir que el primer número es Parqueaderos y el segundo Peajes
+                        parqueaderos = int(numbers[0])
+                        peajes = int(numbers[1])
+                        st.success(f"✅ Encontrado en div: Parqueaderos {parqueaderos}, Peajes {peajes}")
+                        break
         
+        # ESTRATEGIA FINAL: Buscar en todo el HTML como último recurso
+        if parqueaderos is None or peajes is None:
+            st.info("🔍 Búsqueda exhaustiva en todo el contenido...")
+            
+            full_html = str(soup)
+            
+            # Buscar patrones específicos en todo el HTML
+            patterns = [
+                r'Parqueaderos[^0-9]*(\d+)',
+                r'Peajes[^0-9]*(\d+)',
+            ]
+            
+            for pattern in patterns:
+                matches = re.findall(pattern, full_html)
+                if matches:
+                    if 'Parqueaderos' in pattern and parqueaderos is None:
+                        parqueaderos = int(matches[0])
+                        st.success(f"✅ Parqueaderos encontrado con búsqueda exhaustiva: {parqueaderos}")
+                    if 'Peajes' in pattern and peajes is None:
+                        peajes = int(matches[0])
+                        st.success(f"✅ Peajes encontrado con búsqueda exhaustiva: {peajes}")
+        
+        # VERIFICACIÓN FINAL
+        if parqueaderos is None:
+            st.error("❌ No se pudo encontrar el valor de Parqueaderos")
+            return None
+            
+        if peajes is None:
+            st.error("❌ No se pudo encontrar el valor de Peajes")
+            return None
+        
+        st.success(f"🎉 Datos obtenidos exitosamente: Parqueaderos {parqueaderos}, Peajes {peajes}")
         return {
             "parqueaderos": parqueaderos,
             "peajes": peajes
@@ -294,21 +232,7 @@ def get_powerbi_data():
         
     except Exception as e:
         st.error(f"❌ Error crítico al obtener datos de Power BI: {e}")
-        st.info("Por favor ingresa los valores manualmente:")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            parqueaderos = st.number_input("Parqueaderos sin CUFE", min_value=0, value=0, key="parq_error")
-        with col2:
-            peajes = st.number_input("Peajes sin CUFE", min_value=0, value=0, key="peajes_error")
-        
-        if st.button("Usar valores manuales", key="manual_btn"):
-            return {
-                "parqueaderos": parqueaderos,
-                "peajes": peajes
-            }
-        else:
-            st.stop()
+        return None
 
 def run_scraper(name, scraper_class, username, password):
     scraper = scraper_class()
@@ -452,6 +376,10 @@ if st.session_state.get("scraping_done", False):
     if st.button("📩 Generar mensaje de WhatsApp"):
         with st.spinner("🌐 Obteniendo datos de Power BI..."):
             powerbi_data = get_powerbi_data()
+        
+        if powerbi_data is None:
+            st.error("❌ No se pudieron obtener los datos de Power BI. No se puede generar el mensaje.")
+            st.stop()
         
         mensaje = (
             "Buen día, se realiza informe de facturación electrónica, al momento no contamos con facturación pendiente.\n\n"
