@@ -6,7 +6,9 @@ from scraper_fontanar import FacturaFontanarScraper
 from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
- 
+import requests
+from bs4 import BeautifulSoup
+
 # ===========================
 # CONFIGURACIÓN GENERAL
 # ===========================
@@ -88,6 +90,62 @@ FONTANAR_PASS = st.secrets["Fontanar"]["PASSWORD"]
 for key in ["andino", "bulevar", "fontanar", "arkadia"]:
     if key not in st.session_state:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
+
+def get_powerbi_data():
+    """Obtiene los datos de facturas sin CUFE del reporte de Power BI"""
+    try:
+        url = "https://app.powerbi.com/view?r=eyJrIjoiMjUyNTBjMTItOWZlNy00YTY2LWIzMTQtNmM3OGU4ZWM1ZmQxIiwidCI6ImY5MTdlZDFiLWI0MDMtNDljNS1iODBiLWJhYWUzY2UwMzc1YSJ9"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Buscar los valores de Parqueaderos y Peajes
+        # Esto puede necesitar ajustes dependiendo de la estructura HTML específica del Power BI
+        parqueaderos = 0
+        peajes = 0
+        
+        # Buscar elementos que contengan "Parqueaderos" y "Peajes"
+        text_elements = soup.find_all(text=True)
+        
+        for element in text_elements:
+            text = element.strip()
+            if 'Parqueaderos' in text:
+                # Buscar el número asociado (podría estar en el mismo elemento o en uno adyacente)
+                parent = element.parent
+                if parent:
+                    parent_text = parent.get_text()
+                    # Intentar extraer el número después de "Parqueaderos"
+                    import re
+                    match = re.search(r'Parqueaderos\s*(\d+)', parent_text)
+                    if match:
+                        parqueaderos = int(match.group(1))
+            
+            if 'Peajes' in text:
+                parent = element.parent
+                if parent:
+                    parent_text = parent.get_text()
+                    import re
+                    match = re.search(r'Peajes\s*(\d+)', parent_text)
+                    if match:
+                        peajes = int(match.group(1))
+        
+        return {
+            "parqueaderos": parqueaderos,
+            "peajes": peajes
+        }
+        
+    except Exception as e:
+        st.error(f"Error al obtener datos de Power BI: {e}")
+        return {
+            "parqueaderos": 0,
+            "peajes": 0
+        }
 
 def run_scraper(name, scraper_class, username, password):
     scraper = scraper_class()
@@ -229,6 +287,9 @@ def format_fecha(fecha):
 
 if st.session_state.get("scraping_done", False):
     if st.button("📩 Generar mensaje de WhatsApp"):
+        with st.spinner("Obteniendo datos de Power BI..."):
+            powerbi_data = get_powerbi_data()
+        
         mensaje = (
             "Buen día, se realiza informe de facturación electrónica, al momento no contamos con facturación pendiente.\n\n"
             "Se realiza de igual forma revisión de motores FE:\n\n"
@@ -275,4 +336,7 @@ if st.session_state.get("scraping_done", False):
                     f"con {total_hoy} facturas del día de hoy, con sus Jobs actualizados ({fecha_jobs})\n\n"
                 )
         
+        # Añadir los datos de Power BI al mensaje
+        mensaje += f"\nFacturas sin CUFE:\n\nParqueaderos: {powerbi_data['parqueaderos']}\nPeajes: {powerbi_data['peajes']}"
+
         st.text_area("Mensaje generado", mensaje, height=300)
