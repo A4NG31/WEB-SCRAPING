@@ -101,8 +101,8 @@ for key in ["andino", "bulevar", "fontanar", "arkadia"]:
 def get_transacciones_sin_cufe():
     """Consulta el API intermedio para obtener transacciones sin CUFE"""
     try:
-        # URL de tu API desplegado en Render
-        api_url = "https://api-facturacion-intermedio.onrender.com/transacciones-sin-cufe"
+        # Usa la URL base y añade el endpoint
+        api_url = f"{API_URL}/transacciones-sin-cufe"
         
         response = requests.get(api_url, timeout=30)
         
