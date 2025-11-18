@@ -1,12 +1,11 @@
 import streamlit as st
 import pandas as pd
+import requests  # ✅ ESTO DEBE ESTAR AL INICIO
 from scraper import FacturaParkScraper
 from scraper_bulevar import FacturaBulevarScraper
 from scraper_fontanar import FacturaFontanarScraper
 from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-import psycopg2
 from datetime import datetime, timedelta
 
 # ===========================
@@ -77,26 +76,27 @@ st.markdown("""
 
 st.title("🧾 Validador Motores de Facturación")
 
-# Credenciales
-USERNAME = st.secrets["credentials"]["USERNAME"]
-PASSWORD = st.secrets["credentials"]["PASSWORD"]
-ARKADIA_USER = st.secrets["arkadia"]["USERNAME"]
-ARKADIA_PASS = st.secrets["arkadia"]["PASSWORD"]
-FONTANAR_USER = st.secrets["Fontanar"]["USERNAME"]
-FONTANAR_PASS = st.secrets["Fontanar"]["PASSWORD"]
-
-# Credenciales base de datos
-DB_HOST = st.secrets["database"]["HOST"]
-DB_PORT = st.secrets["database"]["PORT"]
-DB_USER = st.secrets["database"]["USER"]
-DB_PASS = st.secrets["database"]["PASS"]
-DB_NAME = st.secrets["database"]["NAME"]
+# Credenciales con manejo de errores
+try:
+    USERNAME = st.secrets["credentials"]["USERNAME"]
+    PASSWORD = st.secrets["credentials"]["PASSWORD"]
+    ARKADIA_USER = st.secrets["arkadia"]["USERNAME"]
+    ARKADIA_PASS = st.secrets["arkadia"]["PASSWORD"]
+    FONTANAR_USER = st.secrets["Fontanar"]["USERNAME"]
+    FONTANAR_PASS = st.secrets["Fontanar"]["PASSWORD"]
+    
+    # URL del API
+    API_URL = st.secrets["api"]["URL"]
+    
+except KeyError as e:
+    st.error(f"❌ Error de configuración: Falta la clave {e} en secrets.toml")
+    st.info("Por favor, verifica que tu archivo secrets.toml tenga todas las claves necesarias.")
+    st.stop()
 
 # Inicializar session_state
 for key in ["andino", "bulevar", "fontanar", "arkadia"]:
     if key not in st.session_state:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
-
 
 def get_transacciones_sin_cufe():
     """Consulta el API intermedio para obtener transacciones sin CUFE"""
@@ -235,7 +235,7 @@ def display_tab(name, display_name):
                 "CUFE": factura.get("cufe"),
                 "Factura": factura.get("id_unico"),
             }
-            st.dataframe(pd.DataFrame([campos_clave]), use_container_width=True)
+            st.dataframe(pd.DataFrame([campos_clave]), width='stretch')
         else:
             st.warning("⚠️ No se encontraron facturas")
     elif state["ok"] == False:
