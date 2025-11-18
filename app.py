@@ -6,7 +6,9 @@ from scraper_fontanar import FacturaFontanarScraper
 from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
- 
+import psycopg2
+from datetime import datetime, timedelta
+
 # ===========================
 # CONFIGURACIÓN GENERAL
 # ===========================
@@ -75,7 +77,6 @@ st.markdown("""
 
 st.title("🧾 Validador Motores de Facturación")
 
-
 # Credenciales
 USERNAME = st.secrets["credentials"]["USERNAME"]
 PASSWORD = st.secrets["credentials"]["PASSWORD"]
@@ -84,10 +85,68 @@ ARKADIA_PASS = st.secrets["arkadia"]["PASSWORD"]
 FONTANAR_USER = st.secrets["Fontanar"]["USERNAME"]
 FONTANAR_PASS = st.secrets["Fontanar"]["PASSWORD"]
 
+# Credenciales base de datos
+DB_HOST = st.secrets["database"]["HOST"]
+DB_PORT = st.secrets["database"]["PORT"]
+DB_USER = st.secrets["database"]["USER"]
+DB_PASS = st.secrets["database"]["PASS"]
+DB_NAME = st.secrets["database"]["NAME"]
+
 # Inicializar session_state
 for key in ["andino", "bulevar", "fontanar", "arkadia"]:
     if key not in st.session_state:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
+
+def get_transacciones_sin_cufe():
+    """Consulta la base de datos para obtener las transacciones sin CUFE del día anterior"""
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASS,
+            database=DB_NAME
+        )
+        cursor = conn.cursor()
+        
+        query = """
+        SELECT 
+            COUNT(*) AS transacciones_sin_cufe
+        FROM 
+            trns.transactions t
+        INNER JOIN 
+            trns.transactionstatus t2 ON t2.idstatus = t.status
+        INNER JOIN 
+            trns.invoices i ON i.idtransaction = t.idtransaction 
+        INNER JOIN 
+            trns.invcseriecons i2 ON i2.idseriecons = i.idseriecons
+        INNER JOIN 
+            trns.invcseries i3 ON i3.idserie = i2.idserie
+        INNER JOIN 
+            assc.commerces c ON c.idcommerce = t.idcommerce
+        INNER JOIN 
+            assc.associates a ON a.idassociate = c.idassociate 
+        INNER JOIN 
+            assc.services s ON s.idservice = t.idservice
+        INNER JOIN 
+            gpus.users u ON u.iduser = t.iduser 
+        WHERE 
+            DATE(i.createdat) = (CURRENT_DATE - INTERVAL '1 day')
+            AND i3.seriename NOT IN ('FEV1', 'VCP')
+            AND (i.cufe IS NULL OR TRIM(i.cufe) = '');
+        """
+        
+        cursor.execute(query)
+        result = cursor.fetchone()
+        
+        cursor.close()
+        conn.close()
+        
+        return result[0] if result else 0
+        
+    except Exception as e:
+        st.error(f"Error al consultar la base de datos: {str(e)}")
+        return None
 
 def run_scraper(name, scraper_class, username, password):
     scraper = scraper_class()
@@ -229,6 +288,13 @@ def format_fecha(fecha):
 
 if st.session_state.get("scraping_done", False):
     if st.button("📩 Generar mensaje de WhatsApp"):
+        with st.spinner("Consultando base de datos..."):
+            # Obtener transacciones sin CUFE del día anterior
+            transacciones_sin_cufe = get_transacciones_sin_cufe()
+            
+            # Obtener fecha de ayer
+            fecha_ayer = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
+        
         mensaje = (
             "Buen día, se realiza informe de facturación electrónica, al momento no contamos con facturación pendiente.\n\n"
             "Se realiza de igual forma revisión de motores FE:\n\n"
@@ -274,5 +340,12 @@ if st.session_state.get("scraping_done", False):
                     f"* {display_name} {'con ' + str(pendientes) + ' facturas pendientes' if int(pendientes) else 'sin facturas pendientes'}, "
                     f"con {total_hoy} facturas del día de hoy, con sus Jobs actualizados ({fecha_jobs})\n\n"
                 )
+        
+        # Añadir información de transacciones sin CUFE
+        if transacciones_sin_cufe is not None:
+            mensaje += f"\nFacturas sin CUFE ({fecha_ayer}):\n"
+            mensaje += f"Total: {transacciones_sin_cufe}"
+        else:
+            mensaje += f"\n⚠️ No se pudo obtener la información de facturas sin CUFE"
         
         st.text_area("Mensaje generado", mensaje, height=300)
