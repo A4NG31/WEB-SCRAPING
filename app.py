@@ -97,55 +97,34 @@ for key in ["andino", "bulevar", "fontanar", "arkadia"]:
     if key not in st.session_state:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
 
+
 def get_transacciones_sin_cufe():
-    """Consulta la base de datos para obtener las transacciones sin CUFE del día anterior"""
+    """Consulta el API intermedio para obtener transacciones sin CUFE"""
     try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASS,
-            database=DB_NAME
-        )
-        cursor = conn.cursor()
+        # URL de tu API desplegado en Render
+        api_url = "https://api-facturacion-intermedio.onrender.com/transacciones-sin-cufe"
         
-        query = """
-        SELECT 
-            COUNT(*) AS transacciones_sin_cufe
-        FROM 
-            trns.transactions t
-        INNER JOIN 
-            trns.transactionstatus t2 ON t2.idstatus = t.status
-        INNER JOIN 
-            trns.invoices i ON i.idtransaction = t.idtransaction 
-        INNER JOIN 
-            trns.invcseriecons i2 ON i2.idseriecons = i.idseriecons
-        INNER JOIN 
-            trns.invcseries i3 ON i3.idserie = i2.idserie
-        INNER JOIN 
-            assc.commerces c ON c.idcommerce = t.idcommerce
-        INNER JOIN 
-            assc.associates a ON a.idassociate = c.idassociate 
-        INNER JOIN 
-            assc.services s ON s.idservice = t.idservice
-        INNER JOIN 
-            gpus.users u ON u.iduser = t.iduser 
-        WHERE 
-            DATE(i.createdat) = (CURRENT_DATE - INTERVAL '1 day')
-            AND i3.seriename NOT IN ('FEV1', 'VCP')
-            AND (i.cufe IS NULL OR TRIM(i.cufe) = '');
-        """
+        response = requests.get(api_url, timeout=30)
         
-        cursor.execute(query)
-        result = cursor.fetchone()
-        
-        cursor.close()
-        conn.close()
-        
-        return result[0] if result else 0
-        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                return data.get("transacciones_sin_cufe", 0)
+            else:
+                st.error(f"Error en la respuesta del API: {data.get('error', 'Error desconocido')}")
+                return None
+        else:
+            st.error(f"Error HTTP {response.status_code} al consultar el API")
+            return None
+            
+    except requests.exceptions.Timeout:
+        st.error("⏰ Timeout al consultar el API")
+        return None
+    except requests.exceptions.ConnectionError:
+        st.error("🔌 Error de conexión con el API")
+        return None
     except Exception as e:
-        st.error(f"Error al consultar la base de datos: {str(e)}")
+        st.error(f"❌ Error inesperado: {str(e)}")
         return None
 
 def run_scraper(name, scraper_class, username, password):
