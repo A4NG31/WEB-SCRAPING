@@ -105,33 +105,52 @@ def get_powerbi_data():
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Buscar los valores de Parqueaderos y Peajes
-        # Esto puede necesitar ajustes dependiendo de la estructura HTML específica del Power BI
+        # Buscar la tabla que contiene "Parqueaderos" y "Peajes"
         parqueaderos = 0
         peajes = 0
         
-        # Buscar elementos que contengan "Parqueaderos" y "Peajes"
-        text_elements = soup.find_all(text=True)
+        # Buscar todas las tablas
+        tables = soup.find_all('table')
         
-        for element in text_elements:
-            text = element.strip()
-            if 'Parqueaderos' in text:
-                # Buscar el número asociado (podría estar en el mismo elemento o en uno adyacente)
-                parent = element.parent
-                if parent:
-                    parent_text = parent.get_text()
-                    # Intentar extraer el número después de "Parqueaderos"
+        for table in tables:
+            # Buscar filas que contengan "Parqueaderos" y "Peajes"
+            rows = table.find_all('tr')
+            for row in rows:
+                cells = row.find_all(['td', 'th'])
+                cell_texts = [cell.get_text(strip=True) for cell in cells]
+                
+                # Buscar "Parqueaderos" en la primera columna
+                if 'Parqueaderos' in cell_texts and len(cell_texts) >= 2:
+                    try:
+                        # La cantidad debería estar en la segunda columna
+                        parqueaderos = int(cell_texts[1])
+                    except (ValueError, IndexError):
+                        pass
+                
+                # Buscar "Peajes" en la primera columna
+                if 'Peajes' in cell_texts and len(cell_texts) >= 2:
+                    try:
+                        # La cantidad debería estar en la segunda columna
+                        peajes = int(cell_texts[1])
+                    except (ValueError, IndexError):
+                        pass
+        
+        # Si no encontramos en tablas, buscar en cualquier elemento que contenga estos textos
+        if parqueaderos == 0 and peajes == 0:
+            all_elements = soup.find_all(text=True)
+            for element in all_elements:
+                text = element.strip()
+                if 'Parqueaderos' in text:
+                    # Buscar número después de Parqueaderos
                     import re
-                    match = re.search(r'Parqueaderos\s*(\d+)', parent_text)
+                    match = re.search(r'Parqueaderos\s*(\d+)', text)
                     if match:
                         parqueaderos = int(match.group(1))
-            
-            if 'Peajes' in text:
-                parent = element.parent
-                if parent:
-                    parent_text = parent.get_text()
+                
+                if 'Peajes' in text:
+                    # Buscar número después de Peajes
                     import re
-                    match = re.search(r'Peajes\s*(\d+)', parent_text)
+                    match = re.search(r'Peajes\s*(\d+)', text)
                     if match:
                         peajes = int(match.group(1))
         
