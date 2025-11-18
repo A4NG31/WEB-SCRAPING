@@ -1,13 +1,12 @@
 import streamlit as st
 import pandas as pd
-import requests  # ✅ ESTO DEBE ESTAR AL INICIO
 from scraper import FacturaParkScraper
 from scraper_bulevar import FacturaBulevarScraper
 from scraper_fontanar import FacturaFontanarScraper
 from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
-
+from datetime import datetime
+ 
 # ===========================
 # CONFIGURACIÓN GENERAL
 # ===========================
@@ -76,73 +75,19 @@ st.markdown("""
 
 st.title("🧾 Validador Motores de Facturación")
 
-# Credenciales con manejo de errores
-try:
-    USERNAME = st.secrets["credentials"]["USERNAME"]
-    PASSWORD = st.secrets["credentials"]["PASSWORD"]
-    ARKADIA_USER = st.secrets["arkadia"]["USERNAME"]
-    ARKADIA_PASS = st.secrets["arkadia"]["PASSWORD"]
-    FONTANAR_USER = st.secrets["Fontanar"]["USERNAME"]
-    FONTANAR_PASS = st.secrets["Fontanar"]["PASSWORD"]
-    
-    # URL del API
-    API_URL = st.secrets["api"]["URL"]
-    
-except KeyError as e:
-    st.error(f"❌ Error de configuración: Falta la clave {e} en secrets.toml")
-    st.info("Por favor, verifica que tu archivo secrets.toml tenga todas las claves necesarias.")
-    st.stop()
+
+# Credenciales
+USERNAME = st.secrets["credentials"]["USERNAME"]
+PASSWORD = st.secrets["credentials"]["PASSWORD"]
+ARKADIA_USER = st.secrets["arkadia"]["USERNAME"]
+ARKADIA_PASS = st.secrets["arkadia"]["PASSWORD"]
+FONTANAR_USER = st.secrets["Fontanar"]["USERNAME"]
+FONTANAR_PASS = st.secrets["Fontanar"]["PASSWORD"]
 
 # Inicializar session_state
 for key in ["andino", "bulevar", "fontanar", "arkadia"]:
     if key not in st.session_state:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
-
-def get_transacciones_sin_cufe():
-    """Consulta el API con mejor manejo de errores"""
-    try:
-        # Primero prueba un endpoint simple
-        test_url = f"{API_URL}/test-simple"
-        health_url = f"{API_URL}/health"
-        data_url = f"{API_URL}/transacciones-sin-cufe"
-        
-        st.info("🔗 Probando conexión con el API...")
-        
-        # Test simple primero
-        try:
-            test_response = requests.get(test_url, timeout=10)
-            if test_response.status_code == 200:
-                st.success("✅ API respondiendo correctamente")
-            else:
-                st.warning("⚠️ API tiene problemas de conectividad")
-                return 430  # Fallback
-        except:
-            st.warning("⚠️ No se pudo conectar al API. Usando valor simulado.")
-            return 430  # Fallback
-        
-        # Ahora intenta obtener los datos reales
-        st.info("📊 Obteniendo datos de transacciones...")
-        response = requests.get(data_url, timeout=15)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("status") == "success":
-                transacciones = data.get("transacciones_sin_cufe", 0)
-                st.success(f"✅ Datos reales obtenidos: {transacciones} transacciones sin CUFE")
-                return transacciones
-            else:
-                st.warning(f"⚠️ API respondió con error: {data.get('error')}")
-                return 430  # Fallback
-        else:
-            st.warning(f"⚠️ Error HTTP {response.status_code}. Usando valor simulado.")
-            return 430  # Fallback
-            
-    except requests.exceptions.Timeout:
-        st.warning("⏰ Timeout al consultar el API. Usando valor simulado.")
-        return 430  # Fallback
-    except Exception as e:
-        st.warning(f"⚠️ Error inesperado: {str(e)}. Usando valor simulado.")
-        return 430  # Fallback
 
 def run_scraper(name, scraper_class, username, password):
     scraper = scraper_class()
@@ -252,7 +197,7 @@ def display_tab(name, display_name):
                 "CUFE": factura.get("cufe"),
                 "Factura": factura.get("id_unico"),
             }
-            st.dataframe(pd.DataFrame([campos_clave]), width='stretch')
+            st.dataframe(pd.DataFrame([campos_clave]), use_container_width=True)
         else:
             st.warning("⚠️ No se encontraron facturas")
     elif state["ok"] == False:
@@ -284,13 +229,6 @@ def format_fecha(fecha):
 
 if st.session_state.get("scraping_done", False):
     if st.button("📩 Generar mensaje de WhatsApp"):
-        with st.spinner("Consultando base de datos..."):
-            # Obtener transacciones sin CUFE del día anterior
-            transacciones_sin_cufe = get_transacciones_sin_cufe()
-            
-            # Obtener fecha de ayer
-            fecha_ayer = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
-        
         mensaje = (
             "Buen día, se realiza informe de facturación electrónica, al momento no contamos con facturación pendiente.\n\n"
             "Se realiza de igual forma revisión de motores FE:\n\n"
@@ -336,12 +274,5 @@ if st.session_state.get("scraping_done", False):
                     f"* {display_name} {'con ' + str(pendientes) + ' facturas pendientes' if int(pendientes) else 'sin facturas pendientes'}, "
                     f"con {total_hoy} facturas del día de hoy, con sus Jobs actualizados ({fecha_jobs})\n\n"
                 )
-        
-        # Añadir información de transacciones sin CUFE
-        if transacciones_sin_cufe is not None:
-            mensaje += f"\nFacturas sin CUFE ({fecha_ayer}):\n"
-            mensaje += f"Total: {transacciones_sin_cufe}"
-        else:
-            mensaje += f"\n⚠️ No se pudo obtener la información de facturas sin CUFE"
         
         st.text_area("Mensaje generado", mensaje, height=300)
