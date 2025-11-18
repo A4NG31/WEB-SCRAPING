@@ -2,3 +2,6 @@ streamlit
 requests
 beautifulsoup4
 psycopg2-binary
+Flask
+flask-cors
+gunicorn
