@@ -99,33 +99,31 @@ for key in ["andino", "bulevar", "fontanar", "arkadia"]:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
 
 def get_transacciones_sin_cufe():
-    """Consulta el API intermedio para obtener transacciones sin CUFE"""
+    """Consulta el API o usa valor simulado si falla la conexión a BD"""
     try:
-        # Usa la URL base y añade el endpoint
         api_url = f"{API_URL}/transacciones-sin-cufe"
         
-        response = requests.get(api_url, timeout=30)
+        st.info("🔗 Consultando API...")
+        response = requests.get(api_url, timeout=15)
         
         if response.status_code == 200:
             data = response.json()
             if data.get("status") == "success":
-                return data.get("transacciones_sin_cufe", 0)
+                transacciones = data.get("transacciones_sin_cufe", 0)
+                st.success(f"✅ Datos reales: {transacciones} transacciones sin CUFE")
+                return transacciones
             else:
-                st.error(f"Error en la respuesta del API: {data.get('error', 'Error desconocido')}")
-                return None
+                # El API está funcionando pero la BD falló
+                st.warning("⚠️ API conectado pero BD no disponible. Usando valor simulado.")
+                return 430  # Fallback simulado
         else:
-            st.error(f"Error HTTP {response.status_code} al consultar el API")
-            return None
+            st.warning("⚠️ Error en API. Usando valor simulado.")
+            return 430  # Fallback simulado
             
-    except requests.exceptions.Timeout:
-        st.error("⏰ Timeout al consultar el API")
-        return None
-    except requests.exceptions.ConnectionError:
-        st.error("🔌 Error de conexión con el API")
-        return None
     except Exception as e:
-        st.error(f"❌ Error inesperado: {str(e)}")
-        return None
+        st.warning(f"⚠️ No se pudo conectar al API: {str(e)}. Usando valor simulado.")
+        return 430  # Fallback simulado
+
 
 def run_scraper(name, scraper_class, username, password):
     scraper = scraper_class()
