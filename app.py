@@ -99,31 +99,50 @@ for key in ["andino", "bulevar", "fontanar", "arkadia"]:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
 
 def get_transacciones_sin_cufe():
-    """Consulta el API o usa valor simulado si falla la conexión a BD"""
+    """Consulta el API con mejor manejo de errores"""
     try:
-        api_url = f"{API_URL}/transacciones-sin-cufe"
+        # Primero prueba un endpoint simple
+        test_url = f"{API_URL}/test-simple"
+        health_url = f"{API_URL}/health"
+        data_url = f"{API_URL}/transacciones-sin-cufe"
         
-        st.info("🔗 Consultando API...")
-        response = requests.get(api_url, timeout=15)
+        st.info("🔗 Probando conexión con el API...")
+        
+        # Test simple primero
+        try:
+            test_response = requests.get(test_url, timeout=10)
+            if test_response.status_code == 200:
+                st.success("✅ API respondiendo correctamente")
+            else:
+                st.warning("⚠️ API tiene problemas de conectividad")
+                return 430  # Fallback
+        except:
+            st.warning("⚠️ No se pudo conectar al API. Usando valor simulado.")
+            return 430  # Fallback
+        
+        # Ahora intenta obtener los datos reales
+        st.info("📊 Obteniendo datos de transacciones...")
+        response = requests.get(data_url, timeout=15)
         
         if response.status_code == 200:
             data = response.json()
             if data.get("status") == "success":
                 transacciones = data.get("transacciones_sin_cufe", 0)
-                st.success(f"✅ Datos reales: {transacciones} transacciones sin CUFE")
+                st.success(f"✅ Datos reales obtenidos: {transacciones} transacciones sin CUFE")
                 return transacciones
             else:
-                # El API está funcionando pero la BD falló
-                st.warning("⚠️ API conectado pero BD no disponible. Usando valor simulado.")
-                return 430  # Fallback simulado
+                st.warning(f"⚠️ API respondió con error: {data.get('error')}")
+                return 430  # Fallback
         else:
-            st.warning("⚠️ Error en API. Usando valor simulado.")
-            return 430  # Fallback simulado
+            st.warning(f"⚠️ Error HTTP {response.status_code}. Usando valor simulado.")
+            return 430  # Fallback
             
+    except requests.exceptions.Timeout:
+        st.warning("⏰ Timeout al consultar el API. Usando valor simulado.")
+        return 430  # Fallback
     except Exception as e:
-        st.warning(f"⚠️ No se pudo conectar al API: {str(e)}. Usando valor simulado.")
-        return 430  # Fallback simulado
-
+        st.warning(f"⚠️ Error inesperado: {str(e)}. Usando valor simulado.")
+        return 430  # Fallback
 
 def run_scraper(name, scraper_class, username, password):
     scraper = scraper_class()
