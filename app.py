@@ -262,7 +262,6 @@ def find_parqueaderos_peajes_values(driver):
     Usa estrategias similares al código que funciona
     """
     try:
-        st.info("🔍 Buscando valores de Parqueaderos y Peajes...")
         
         # Esperar a que la página cargue completamente
         time.sleep(8)
@@ -277,19 +276,16 @@ def find_parqueaderos_peajes_values(driver):
         peajes = None
         
         # ESTRATEGIA 1: Buscar en líneas consecutivas
-        st.info("🔄 Estrategia 1: Búsqueda en líneas consecutivas...")
         for i, line in enumerate(lines):
             line_clean = line.strip()
             
             # Buscar "Parqueaderos"
             if 'parqueaderos' in line_clean.lower() and parqueaderos is None:
-                st.info(f"📍 Encontrado 'Parqueaderos' en línea {i}: {line_clean}")
                 
                 # Buscar número en la misma línea
                 num = extract_number_from_text(line_clean)
                 if num:
                     parqueaderos = num
-                    st.success(f"✅ Parqueaderos encontrado en misma línea: {parqueaderos}")
                 else:
                     # Buscar en las siguientes 5 líneas
                     for offset in range(1, 6):
@@ -298,18 +294,15 @@ def find_parqueaderos_peajes_values(driver):
                             num = extract_number_from_text(next_line)
                             if num:
                                 parqueaderos = num
-                                st.success(f"✅ Parqueaderos encontrado {offset} líneas después: {parqueaderos}")
                                 break
             
             # Buscar "Peajes"
             if 'peajes' in line_clean.lower() and peajes is None:
-                st.info(f"📍 Encontrado 'Peajes' en línea {i}: {line_clean}")
                 
                 # Buscar número en la misma línea
                 num = extract_number_from_text(line_clean)
                 if num:
                     peajes = num
-                    st.success(f"✅ Peajes encontrado en misma línea: {peajes}")
                 else:
                     # Buscar en las siguientes 5 líneas
                     for offset in range(1, 6):
@@ -318,12 +311,10 @@ def find_parqueaderos_peajes_values(driver):
                             num = extract_number_from_text(next_line)
                             if num:
                                 peajes = num
-                                st.success(f"✅ Peajes encontrado {offset} líneas después: {peajes}")
                                 break
         
         # ESTRATEGIA 2: Buscar por elementos HTML si la estrategia 1 falló
         if parqueaderos is None or peajes is None:
-            st.info("🔄 Estrategia 2: Búsqueda por elementos HTML...")
             
             # Buscar todos los elementos que contengan "Parqueaderos"
             if parqueaderos is None:
@@ -339,7 +330,6 @@ def find_parqueaderos_peajes_values(driver):
                                 num = extract_number_from_text(parent_text)
                                 if num:
                                     parqueaderos = num
-                                    st.success(f"✅ Parqueaderos encontrado en elemento padre: {parqueaderos}")
                                     break
                             except:
                                 pass
@@ -354,7 +344,6 @@ def find_parqueaderos_peajes_values(driver):
                                         num = extract_number_from_text(sibling_text)
                                         if num:
                                             parqueaderos = num
-                                            st.success(f"✅ Parqueaderos encontrado en hermano: {parqueaderos}")
                                             break
                             except:
                                 pass
@@ -375,7 +364,6 @@ def find_parqueaderos_peajes_values(driver):
                                 num = extract_number_from_text(parent_text)
                                 if num:
                                     peajes = num
-                                    st.success(f"✅ Peajes encontrado en elemento padre: {peajes}")
                                     break
                             except:
                                 pass
@@ -390,7 +378,6 @@ def find_parqueaderos_peajes_values(driver):
                                         num = extract_number_from_text(sibling_text)
                                         if num:
                                             peajes = num
-                                            st.success(f"✅ Peajes encontrado en hermano: {peajes}")
                                             break
                             except:
                                 pass
@@ -399,25 +386,21 @@ def find_parqueaderos_peajes_values(driver):
         
         # ESTRATEGIA 3: Búsqueda por patrones regex en todo el texto
         if parqueaderos is None or peajes is None:
-            st.info("🔄 Estrategia 3: Búsqueda con regex en todo el texto...")
             
             if parqueaderos is None:
                 # Buscar patrón "Parqueaderos" seguido de número
                 match = re.search(r'[Pp]arqueaderos[^\d]*(\d{1,3}(?:,\d{3})*)', page_text)
                 if match:
                     parqueaderos = match.group(1)
-                    st.success(f"✅ Parqueaderos encontrado con regex: {parqueaderos}")
             
             if peajes is None:
                 # Buscar patrón "Peajes" seguido de número
                 match = re.search(r'[Pp]eajes[^\d]*(\d{1,3}(?:,\d{3})*)', page_text)
                 if match:
                     peajes = match.group(1)
-                    st.success(f"✅ Peajes encontrado con regex: {peajes}")
         
         # ESTRATEGIA 4: Buscar en contexto de tabla específica
         if parqueaderos is None or peajes is None:
-            st.info("🔄 Estrategia 4: Búsqueda en contexto de tabla...")
             
             # Buscar secciones que contengan ambos términos
             sections_with_both = []
@@ -437,10 +420,8 @@ def find_parqueaderos_peajes_values(driver):
                         # Asumir que el primer número es Parqueaderos y el segundo Peajes
                         if parqueaderos is None:
                             parqueaderos = numbers[0]
-                            st.success(f"✅ Parqueaderos asignado desde tabla: {parqueaderos}")
                         if peajes is None:
                             peajes = numbers[1]
-                            st.success(f"✅ Peajes asignado desde tabla: {peajes}")
                         break
         
         # Verificación final
