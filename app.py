@@ -260,7 +260,7 @@ def extract_number_from_text(text):
 def find_parqueaderos_peajes_values(driver):
     """
     Buscar los valores de Parqueaderos y Peajes en el Power BI
-    Usa estrategias similares al código que funciona
+    Y también extraer la fecha analizada
     """
     try:
         
@@ -275,6 +275,7 @@ def find_parqueaderos_peajes_values(driver):
         
         parqueaderos = None
         peajes = None
+        fecha_analizada = None
         
         # ESTRATEGIA 1: Buscar en líneas consecutivas
         for i, line in enumerate(lines):
@@ -313,9 +314,45 @@ def find_parqueaderos_peajes_values(driver):
                             if num:
                                 peajes = num
                                 break
+            
+            # Buscar fecha en formato MM/DD/YYYY o DD/MM/YYYY
+            if fecha_analizada is None:
+                # Buscar patrones de fecha comunes en Power BI
+                fecha_patterns = [
+                    r'\b\d{1,2}/\d{1,2}/\d{4}\b',  # MM/DD/YYYY o DD/MM/YYYY
+                    r'\b\d{1,2}-\d{1,2}-\d{4}\b',  # MM-DD-YYYY o DD-MM-YYYY
+                    r'\b\d{4}/\d{1,2}/\d{1,2}\b',  # YYYY/MM/DD
+                ]
+                
+                for pattern in fecha_patterns:
+                    fecha_match = re.search(pattern, line_clean)
+                    if fecha_match:
+                        fecha_cruda = fecha_match.group(0)
+                        
+                        # Verificar si es una fecha válida (no parte de un número grande)
+                        if not re.search(r'\d{5,}', fecha_cruda):  # Evitar números grandes como 12345/67/89
+                            try:
+                                # Convertir a datetime para validar
+                                fecha_obj = None
+                                
+                                # Intentar diferentes formatos
+                                for fmt in ['%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y']:
+                                    try:
+                                        fecha_obj = datetime.strptime(fecha_cruda, fmt)
+                                        break
+                                    except:
+                                        continue
+                                
+                                if fecha_obj:
+                                    # Formatear a DD/MM/YYYY
+                                    fecha_analizada = fecha_obj.strftime('%d/%m/%Y')
+                                    st.success(f"📅 Fecha analizada encontrada: {fecha_analizada}")
+                                    break
+                            except:
+                                pass
         
         # ESTRATEGIA 2: Buscar por elementos HTML si la estrategia 1 falló
-        if parqueaderos is None or peajes is None:
+        if parqueaderos is None or peajes is None or fecha_analizada is None:
             
             # Buscar todos los elementos que contengan "Parqueaderos"
             if parqueaderos is None:
@@ -384,9 +421,45 @@ def find_parqueaderos_peajes_values(driver):
                                 pass
                 except Exception as e:
                     st.warning(f"⚠️ Error en búsqueda de Peajes: {e}")
+            
+            # Buscar fecha en elementos específicos
+            if fecha_analizada is None:
+                try:
+                    # Buscar elementos que contengan fechas
+                    fecha_elements = driver.find_elements(By.XPATH, "//*[contains(text(), '/202') or contains(text(), '-202')]")
+                    
+                    for elem in fecha_elements:
+                        if elem.is_displayed():
+                            elem_text = elem.text.strip()
+                            # Buscar patrones de fecha
+                            fecha_patterns = [
+                                r'\b\d{1,2}/\d{1,2}/202\d\b',
+                                r'\b\d{1,2}-\d{1,2}-202\d\b',
+                            ]
+                            
+                            for pattern in fecha_patterns:
+                                fecha_match = re.search(pattern, elem_text)
+                                if fecha_match:
+                                    fecha_cruda = fecha_match.group(0)
+                                    try:
+                                        # Intentar diferentes formatos
+                                        for fmt in ['%m/%d/%Y', '%d/%m/%Y', '%m-%d-%Y', '%d-%m-%Y']:
+                                            try:
+                                                fecha_obj = datetime.strptime(fecha_cruda, fmt)
+                                                fecha_analizada = fecha_obj.strftime('%d/%m/%Y')
+                                                st.success(f"📅 Fecha encontrada en elemento: {fecha_analizada}")
+                                                break
+                                            except:
+                                                continue
+                                        if fecha_analizada:
+                                            break
+                                    except:
+                                        pass
+                except Exception as e:
+                    st.warning(f"⚠️ Error en búsqueda de fecha: {e}")
         
         # ESTRATEGIA 3: Búsqueda por patrones regex en todo el texto
-        if parqueaderos is None or peajes is None:
+        if parqueaderos is None or peajes is None or fecha_analizada is None:
             
             if parqueaderos is None:
                 # Buscar patrón "Parqueaderos" seguido de número
@@ -399,9 +472,20 @@ def find_parqueaderos_peajes_values(driver):
                 match = re.search(r'[Pp]eajes[^\d]*(\d{1,3}(?:,\d{3})*)', page_text)
                 if match:
                     peajes = match.group(1)
+            
+            if fecha_analizada is None:
+                # Buscar fechas en todo el texto
+                fecha_match = re.search(r'\b(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/(202[4-9])\b', page_text)
+                if fecha_match:
+                    try:
+                        mes, dia, año = fecha_match.groups()
+                        fecha_analizada = f"{int(dia):02d}/{int(mes):02d}/{año}"
+                        st.success(f"📅 Fecha encontrada con regex: {fecha_analizada}")
+                    except:
+                        pass
         
         # ESTRATEGIA 4: Buscar en contexto de tabla específica
-        if parqueaderos is None or peajes is None:
+        if parqueaderos is None or peajes is None or fecha_analizada is None:
             
             # Buscar secciones que contengan ambos términos
             sections_with_both = []
@@ -423,6 +507,24 @@ def find_parqueaderos_peajes_values(driver):
                             parqueaderos = numbers[0]
                         if peajes is None:
                             peajes = numbers[1]
+                    
+                    # Buscar fecha en la sección
+                    if fecha_analizada is None:
+                        fecha_match = re.search(r'\b\d{1,2}/\d{1,2}/202[4-9]\b', section)
+                        if fecha_match:
+                            try:
+                                fecha_cruda = fecha_match.group(0)
+                                for fmt in ['%m/%d/%Y', '%d/%m/%Y']:
+                                    try:
+                                        fecha_obj = datetime.strptime(fecha_cruda, fmt)
+                                        fecha_analizada = fecha_obj.strftime('%d/%m/%Y')
+                                        break
+                                    except:
+                                        continue
+                            except:
+                                pass
+                    
+                    if parqueaderos and peajes and fecha_analizada:
                         break
         
         # Verificación final
@@ -432,16 +534,22 @@ def find_parqueaderos_peajes_values(driver):
         if peajes is None:
             st.error("❌ No se pudo encontrar el valor de Peajes")
         
-        return parqueaderos, peajes
+        if fecha_analizada is None:
+            st.warning("⚠️ No se pudo encontrar la fecha analizada en el BI")
+            # Usar fecha actual como fallback
+            fecha_analizada = datetime.now().strftime('%d/%m/%Y')
+            st.info(f"📅 Usando fecha actual: {fecha_analizada}")
+        
+        return parqueaderos, peajes, fecha_analizada
         
     except Exception as e:
         st.error(f"❌ Error durante la búsqueda: {str(e)}")
-        return None, None
+        return None, None, None
 
 def get_powerbi_data():
     """
     Obtiene los datos de facturas sin CUFE del reporte de Power BI usando Selenium
-    VERSIÓN MEJORADA basada en el código que funciona
+    VERSIÓN MEJORADA que también extrae la fecha analizada
     """
     try:
         POWERBI_URL = "https://app.powerbi.com/view?r=eyJrIjoiMjUyNTBjMTItOWZlNy00YTY2LWIzMTQtNmM3OGU4ZWM1ZmQxIiwidCI6ImY5MTdlZDFiLWI0MDMtNDljNS1iODBiLWJhYWUzY2UwMzc1YSJ9"
@@ -466,8 +574,8 @@ def get_powerbi_data():
             except:
                 pass
             
-            # Buscar los valores de Parqueaderos y Peajes
-            parqueaderos, peajes = find_parqueaderos_peajes_values(driver)
+            # Buscar los valores de Parqueaderos, Peajes y Fecha
+            parqueaderos, peajes, fecha_analizada = find_parqueaderos_peajes_values(driver)
             
             # Mostrar el texto completo de la página para debug (solo primeras líneas)
             with st.expander("🔍 Ver texto extraído de la página (primeras 50 líneas)"):
@@ -487,7 +595,8 @@ def get_powerbi_data():
                 
                 return {
                     "parqueaderos": parqueaderos_num,
-                    "peajes": peajes_num
+                    "peajes": peajes_num,
+                    "fecha_analizada": fecha_analizada
                 }
             except ValueError as e:
                 st.error(f"❌ Error convirtiendo valores a números: {e}")
@@ -707,6 +816,6 @@ if st.session_state.get("scraping_done", False):
                 )
         
         # Añadir los datos de Power BI al mensaje
-        mensaje += f"\nFacturas sin CUFE:\n\nParqueaderos: {powerbi_data['parqueaderos']:,}\nPeajes: {powerbi_data['peajes']:,}"
+        mensaje += f"\nFacturas sin CUFE: (BI actualizado: {powerbi_data['fecha_analizada']})\n\nParqueaderos: {powerbi_data['parqueaderos']:,}\nPeajes: {powerbi_data['peajes']:,}"
 
         st.text_area("Mensaje generado", mensaje, height=300)
