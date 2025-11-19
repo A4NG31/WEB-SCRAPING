@@ -464,7 +464,6 @@ def get_powerbi_data():
     try:
         POWERBI_URL = "https://app.powerbi.com/view?r=eyJrIjoiMjUyNTBjMTItOWZlNy00YTY2LWIzMTQtNmM3OGU4ZWM1ZmQxIiwidCI6ImY5MTdlZDFiLWI0MDMtNDljNS1iODBiLWJhYWUzY2UwMzc1YSJ9"
         
-        st.info("🌐 Conectando con Power BI...")
         
         # Configurar el driver
         driver = setup_driver()
@@ -474,17 +473,14 @@ def get_powerbi_data():
         
         try:
             # Navegar al reporte
-            st.info("⏳ Cargando dashboard de Power BI...")
             driver.get(POWERBI_URL)
             
             # Esperar a que cargue la página
-            st.info("⏳ Esperando a que carguen los datos...")
             time.sleep(15)  # Espera para que se renderice el contenido
             
             # Tomar screenshot para debug
             try:
                 driver.save_screenshot("powerbi_screenshot.png")
-                st.info("📸 Screenshot guardado para debug")
             except:
                 pass
             
@@ -507,10 +503,6 @@ def get_powerbi_data():
                 parqueaderos_num = int(parqueaderos.replace(',', ''))
                 peajes_num = int(peajes.replace(',', ''))
                 
-                st.success(f"🎉 Datos obtenidos exitosamente!")
-                st.success(f"📊 Parqueaderos: {parqueaderos_num:,}")
-                st.success(f"📊 Peajes: {peajes_num:,}")
-                
                 return {
                     "parqueaderos": parqueaderos_num,
                     "peajes": peajes_num
@@ -521,7 +513,6 @@ def get_powerbi_data():
             
         finally:
             driver.quit()
-            st.info("✅ Driver cerrado correctamente")
         
     except Exception as e:
         st.error(f"❌ Error crítico al obtener datos de Power BI: {str(e)}")
