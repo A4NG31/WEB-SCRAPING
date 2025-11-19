@@ -3,3 +3,6 @@ requests
 beautifulsoup4
 selenium
 pandas
+chromium
+chromium-driver
+chromium-l10n
