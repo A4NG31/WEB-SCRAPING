@@ -13,6 +13,7 @@ from selenium.webdriver.chrome.service import Service
 import time
 import re
 
+
 # ===========================
 # CONFIGURACIÓN GENERAL
 # ===========================
