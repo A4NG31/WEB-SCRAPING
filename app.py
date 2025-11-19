@@ -9,6 +9,7 @@ from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 import time
 import re
 
@@ -98,30 +99,144 @@ for key in ["andino", "bulevar", "fontanar", "arkadia"]:
 # ===========================
 
 def setup_driver():
-    """Configurar ChromeDriver para Selenium"""
+    """Configurar ChromeDriver para Selenium - Compatible con Streamlit Cloud"""
     try:
+        from webdriver_manager.chrome import ChromeDriverManager
+        from webdriver_manager.core.os_manager import ChromeType
+        
         chrome_options = Options()
         
-        # Opciones para mejor compatibilidad con Streamlit Cloud
-        chrome_options.add_argument("--headless=new")
+        # Opciones críticas para Streamlit Cloud
+        chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--disable-software-rasterizer")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-setuid-sandbox")
         chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--start-maximized")
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--remote-debugging-port=9222")
+        chrome_options.add_argument("--single-process")
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
         
         # User agent real
         chrome_options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         
-        # Usar ChromeDriver del sistema
-        driver = webdriver.Chrome(options=chrome_options)
-        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        return driver
+        # MÉTODO 1: Usar webdriver-manager con CHROMIUM
+        try:
+            st.info("🔄 Configurando ChromeDriver con webdriver-manager...")
+            
+            # Instalar chromedriver compatible con chromium
+            service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+            
+            # Especificar la ubicación de chromium
+            chrome_options.binary_location = "/usr/bin/chromium"
+            
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
+            st.success("✅ ChromeDriver configurado exitosamente")
+            return driver
+            
+        except Exception as e1:
+            st.warning(f"⚠️ Método 1 falló: {e1}")
+            
+            # MÉTODO 2: Sin especificar chrome_type
+            try:
+                st.info("🔄 Intentando método alternativo...")
+                
+                service = Service(ChromeDriverManager().install())
+                chrome_options.binary_location = "/usr/bin/chromium"
+                
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+                driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                
+                st.success("✅ ChromeDriver configurado con método alternativo")
+                return driver
+                
+            except Exception as e2:
+                st.error(f"❌ Método 2 también falló: {e2}")
+                
+                # MÉTODO 3: Usar chromedriver del sistema directamente
+                try:
+                    st.info("🔄 Intentando con chromedriver del sistema...")
+                    
+                    import subprocess
+                    import os
+                    
+                    # Buscar chromedriver en el sistema
+                    result = subprocess.run(['which', 'chromedriver'], 
+                                          capture_output=True, text=True)
+                    chromedriver_path = result.stdout.strip()
+                    
+                    if chromedriver_path and os.path.exists(chromedriver_path):
+                        st.info(f"📍 ChromeDriver encontrado en: {chromedriver_path}")
+                        
+                        # Hacer ejecutable
+                        os.chmod(chromedriver_path, 0o755)
+                        
+                        service = Service(executable_path=chromedriver_path)
+                        chrome_options.binary_location = "/usr/bin/chromium"
+                        
+                        driver = webdriver.Chrome(service=service, options=chrome_options)
+                        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                        
+                        st.success("✅ ChromeDriver del sistema configurado")
+                        return driver
+                    else:
+                        st.error("❌ ChromeDriver no encontrado en el sistema")
+                        return None
+                        
+                except Exception as e3:
+                    st.error(f"❌ Método 3 falló: {e3}")
+                    
+                    # Mostrar información de debug
+                    with st.expander("🔍 Información de Debug"):
+                        import subprocess
+                        
+                        st.text("=== Verificando Chromium ===")
+                        try:
+                            result = subprocess.run(['which', 'chromium'], 
+                                                  capture_output=True, text=True, timeout=5)
+                            st.text(f"which chromium: {result.stdout}")
+                            st.text(f"stderr: {result.stderr}")
+                        except Exception as e:
+                            st.text(f"Error: {e}")
+                        
+                        st.text("\n=== Verificando ChromeDriver ===")
+                        try:
+                            result = subprocess.run(['which', 'chromedriver'], 
+                                                  capture_output=True, text=True, timeout=5)
+                            st.text(f"which chromedriver: {result.stdout}")
+                            st.text(f"stderr: {result.stderr}")
+                        except Exception as e:
+                            st.text(f"Error: {e}")
+                        
+                        st.text("\n=== Archivos en /usr/bin ===")
+                        try:
+                            result = subprocess.run(['ls', '-la', '/usr/bin/chrom*'], 
+                                                  capture_output=True, text=True, timeout=5, shell=True)
+                            st.text(result.stdout)
+                        except Exception as e:
+                            st.text(f"Error: {e}")
+                        
+                        st.text("\n=== Verificando dependencias ===")
+                        try:
+                            result = subprocess.run(['ldd', '/usr/bin/chromium'], 
+                                                  capture_output=True, text=True, timeout=5)
+                            st.text(result.stdout[:500])  # Primeras líneas
+                        except Exception as e:
+                            st.text(f"Error: {e}")
+                    
+                    return None
         
     except Exception as e:
-        st.error(f"❌ Error al configurar ChromeDriver: {e}")
+        st.error(f"❌ Error crítico al configurar ChromeDriver: {e}")
+        import traceback
+        st.error(traceback.format_exc())
         return None
 
 def extract_number_from_text(text):
