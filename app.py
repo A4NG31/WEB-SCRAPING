@@ -6,11 +6,11 @@ from scraper_fontanar import FacturaFontanarScraper
 from scraper_arkadia import FacturaArkadiaScraper
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-import requests
-from bs4 import BeautifulSoup
-import json
-import re
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
 import time
+import re
 
 # ===========================
 # CONFIGURACIÓN GENERAL
@@ -93,146 +93,330 @@ for key in ["andino", "bulevar", "fontanar", "arkadia"]:
     if key not in st.session_state:
         st.session_state[key] = {"ok": False, "data": None, "jobs": None, "invoices": None}
 
-def get_powerbi_data():
-    """Obtiene los datos de facturas sin CUFE del reporte de Power BI"""
+# ===========================
+# FUNCIONES DE SELENIUM
+# ===========================
+
+def setup_driver():
+    """Configurar ChromeDriver para Selenium"""
     try:
-        POWERBI_URL = "https://app.powerbi.com/view?r=eyJrIjoiMjUyNTBjMTItOWZlNy00YTY2LWIzMTQtNmM3OGU4ZWM1ZmQxIiwidCI6ImY5MTdlZDFiLWI0MDMtNDljNS1iODBiLWJhYWUzY2UwMzc1YSJ9"
+        chrome_options = Options()
         
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Cache-Control': 'max-age=0',
-        }
+        # Opciones para mejor compatibilidad con Streamlit Cloud
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
         
-        st.info("🌐 Conectando con Power BI...")
+        # User agent real
+        chrome_options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         
-        session = requests.Session()
-        session.headers.update(headers)
+        # Usar ChromeDriver del sistema
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        return driver
         
-        # Hacer la petición
-        response = session.get(POWERBI_URL, timeout=60)
-        response.raise_for_status()
+    except Exception as e:
+        st.error(f"❌ Error al configurar ChromeDriver: {e}")
+        return None
+
+def extract_number_from_text(text):
+    """Extrae un número del texto, manejando formatos con comas"""
+    try:
+        # Buscar números con comas (formato: 1,234 o 12,345)
+        match = re.search(r'\b\d{1,3}(?:,\d{3})+\b', text)
+        if match:
+            return match.group(0)
         
-        # Parsear el HTML
-        soup = BeautifulSoup(response.content, 'html.parser')
+        # Buscar números simples
+        match = re.search(r'\b\d+\b', text)
+        if match:
+            return match.group(0)
         
-        # ESTRATEGIA DIRECTA: Buscar específicamente la tabla con "Parqueaderos" y "Peajes"
-        st.info("🔍 Buscando tabla específica...")
+        return None
+    except:
+        return None
+
+def find_parqueaderos_peajes_values(driver):
+    """
+    Buscar los valores de Parqueaderos y Peajes en el Power BI
+    Usa estrategias similares al código que funciona
+    """
+    try:
+        st.info("🔍 Buscando valores de Parqueaderos y Peajes...")
         
-        # Buscar todos los textos que contengan "Parqueaderos" o "Peajes"
-        all_texts = soup.find_all(text=True)
+        # Esperar a que la página cargue completamente
+        time.sleep(8)
+        
+        # Obtener todo el texto visible de la página
+        page_text = driver.find_element(By.TAG_NAME, "body").text
+        
+        # Dividir en líneas para análisis
+        lines = page_text.split('\n')
         
         parqueaderos = None
         peajes = None
         
-        for text in all_texts:
-            text_clean = text.strip()
-            if not text_clean:
-                continue
+        # ESTRATEGIA 1: Buscar en líneas consecutivas
+        st.info("🔄 Estrategia 1: Búsqueda en líneas consecutivas...")
+        for i, line in enumerate(lines):
+            line_clean = line.strip()
+            
+            # Buscar "Parqueaderos"
+            if 'parqueaderos' in line_clean.lower() and parqueaderos is None:
+                st.info(f"📍 Encontrado 'Parqueaderos' en línea {i}: {line_clean}")
                 
-            # Si encontramos "Parqueaderos", buscar el número asociado
-            if 'Parqueaderos' in text_clean and parqueaderos is None:
-                # Buscar patrones como "Parqueaderos 430"
-                match = re.search(r'Parqueaderos\s+(\d+)', text_clean)
-                if match:
-                    parqueaderos = int(match.group(1))
-                    st.success(f"✅ Parqueaderos encontrado: {parqueaderos}")
+                # Buscar número en la misma línea
+                num = extract_number_from_text(line_clean)
+                if num:
+                    parqueaderos = num
+                    st.success(f"✅ Parqueaderos encontrado en misma línea: {parqueaderos}")
                 else:
-                    # Buscar en el contexto del elemento
-                    parent = text.parent
-                    if parent:
-                        # Buscar números en elementos hermanos
-                        siblings = parent.find_all(text=True)
-                        for sibling in siblings:
-                            sibling_clean = sibling.strip()
-                            if sibling_clean.isdigit() and sibling != text:
-                                parqueaderos = int(sibling_clean)
-                                st.success(f"✅ Parqueaderos encontrado en contexto: {parqueaderos}")
+                    # Buscar en las siguientes 5 líneas
+                    for offset in range(1, 6):
+                        if i + offset < len(lines):
+                            next_line = lines[i + offset].strip()
+                            num = extract_number_from_text(next_line)
+                            if num:
+                                parqueaderos = num
+                                st.success(f"✅ Parqueaderos encontrado {offset} líneas después: {parqueaderos}")
                                 break
             
-            # Si encontramos "Peajes", buscar el número asociado
-            if 'Peajes' in text_clean and peajes is None:
-                match = re.search(r'Peajes\s+(\d+)', text_clean)
-                if match:
-                    peajes = int(match.group(1))
-                    st.success(f"✅ Peajes encontrado: {peajes}")
+            # Buscar "Peajes"
+            if 'peajes' in line_clean.lower() and peajes is None:
+                st.info(f"📍 Encontrado 'Peajes' en línea {i}: {line_clean}")
+                
+                # Buscar número en la misma línea
+                num = extract_number_from_text(line_clean)
+                if num:
+                    peajes = num
+                    st.success(f"✅ Peajes encontrado en misma línea: {peajes}")
                 else:
-                    parent = text.parent
-                    if parent:
-                        siblings = parent.find_all(text=True)
-                        for sibling in siblings:
-                            sibling_clean = sibling.strip()
-                            if sibling_clean.isdigit() and sibling != text:
-                                peajes = int(sibling_clean)
-                                st.success(f"✅ Peajes encontrado en contexto: {peajes}")
+                    # Buscar en las siguientes 5 líneas
+                    for offset in range(1, 6):
+                        if i + offset < len(lines):
+                            next_line = lines[i + offset].strip()
+                            num = extract_number_from_text(next_line)
+                            if num:
+                                peajes = num
+                                st.success(f"✅ Peajes encontrado {offset} líneas después: {peajes}")
                                 break
         
-        # ESTRATEGIA ALTERNATIVA: Buscar en estructuras de tabla específicas
+        # ESTRATEGIA 2: Buscar por elementos HTML si la estrategia 1 falló
         if parqueaderos is None or peajes is None:
-            st.info("🔍 Buscando en estructuras de tabla...")
+            st.info("🔄 Estrategia 2: Búsqueda por elementos HTML...")
             
-            # Buscar divs que puedan contener la tabla
-            divs = soup.find_all('div')
-            for div in divs:
-                div_text = div.get_text(strip=True)
-                if 'Parqueaderos' in div_text and 'Peajes' in div_text:
-                    # Extraer todos los números de este div
-                    numbers = re.findall(r'\d+', div_text)
+            # Buscar todos los elementos que contengan "Parqueaderos"
+            if parqueaderos is None:
+                try:
+                    parq_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'Parqueaderos') or contains(text(), 'parqueaderos') or contains(text(), 'PARQUEADEROS')]")
+                    
+                    for elem in parq_elements:
+                        if elem.is_displayed():
+                            # Buscar en el contenedor padre
+                            try:
+                                parent = elem.find_element(By.XPATH, "./..")
+                                parent_text = parent.text
+                                num = extract_number_from_text(parent_text)
+                                if num:
+                                    parqueaderos = num
+                                    st.success(f"✅ Parqueaderos encontrado en elemento padre: {parqueaderos}")
+                                    break
+                            except:
+                                pass
+                            
+                            # Buscar en elementos hermanos
+                            try:
+                                parent = elem.find_element(By.XPATH, "./..")
+                                siblings = parent.find_elements(By.XPATH, "./*")
+                                for sibling in siblings:
+                                    if sibling != elem:
+                                        sibling_text = sibling.text.strip()
+                                        num = extract_number_from_text(sibling_text)
+                                        if num:
+                                            parqueaderos = num
+                                            st.success(f"✅ Parqueaderos encontrado en hermano: {parqueaderos}")
+                                            break
+                            except:
+                                pass
+                except Exception as e:
+                    st.warning(f"⚠️ Error en búsqueda de Parqueaderos: {e}")
+            
+            # Buscar todos los elementos que contengan "Peajes"
+            if peajes is None:
+                try:
+                    peaj_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'Peajes') or contains(text(), 'peajes') or contains(text(), 'PEAJES')]")
+                    
+                    for elem in peaj_elements:
+                        if elem.is_displayed():
+                            # Buscar en el contenedor padre
+                            try:
+                                parent = elem.find_element(By.XPATH, "./..")
+                                parent_text = parent.text
+                                num = extract_number_from_text(parent_text)
+                                if num:
+                                    peajes = num
+                                    st.success(f"✅ Peajes encontrado en elemento padre: {peajes}")
+                                    break
+                            except:
+                                pass
+                            
+                            # Buscar en elementos hermanos
+                            try:
+                                parent = elem.find_element(By.XPATH, "./..")
+                                siblings = parent.find_elements(By.XPATH, "./*")
+                                for sibling in siblings:
+                                    if sibling != elem:
+                                        sibling_text = sibling.text.strip()
+                                        num = extract_number_from_text(sibling_text)
+                                        if num:
+                                            peajes = num
+                                            st.success(f"✅ Peajes encontrado en hermano: {peajes}")
+                                            break
+                            except:
+                                pass
+                except Exception as e:
+                    st.warning(f"⚠️ Error en búsqueda de Peajes: {e}")
+        
+        # ESTRATEGIA 3: Búsqueda por patrones regex en todo el texto
+        if parqueaderos is None or peajes is None:
+            st.info("🔄 Estrategia 3: Búsqueda con regex en todo el texto...")
+            
+            if parqueaderos is None:
+                # Buscar patrón "Parqueaderos" seguido de número
+                match = re.search(r'[Pp]arqueaderos[^\d]*(\d{1,3}(?:,\d{3})*)', page_text)
+                if match:
+                    parqueaderos = match.group(1)
+                    st.success(f"✅ Parqueaderos encontrado con regex: {parqueaderos}")
+            
+            if peajes is None:
+                # Buscar patrón "Peajes" seguido de número
+                match = re.search(r'[Pp]eajes[^\d]*(\d{1,3}(?:,\d{3})*)', page_text)
+                if match:
+                    peajes = match.group(1)
+                    st.success(f"✅ Peajes encontrado con regex: {peajes}")
+        
+        # ESTRATEGIA 4: Buscar en contexto de tabla específica
+        if parqueaderos is None or peajes is None:
+            st.info("🔄 Estrategia 4: Búsqueda en contexto de tabla...")
+            
+            # Buscar secciones que contengan ambos términos
+            sections_with_both = []
+            for i, line in enumerate(lines):
+                window = ' '.join(lines[max(0, i-5):min(len(lines), i+5)])
+                if 'parqueaderos' in window.lower() and 'peajes' in window.lower():
+                    sections_with_both.append((i, window))
+            
+            if sections_with_both:
+                st.info(f"📋 Encontradas {len(sections_with_both)} secciones con ambos términos")
+                
+                for idx, section in sections_with_both:
+                    # Extraer todos los números de la sección
+                    numbers = re.findall(r'\b\d{1,3}(?:,\d{3})+\b|\b\d{3,}\b', section)
+                    
                     if len(numbers) >= 2:
                         # Asumir que el primer número es Parqueaderos y el segundo Peajes
-                        parqueaderos = int(numbers[0])
-                        peajes = int(numbers[1])
-                        st.success(f"✅ Encontrado en div: Parqueaderos {parqueaderos}, Peajes {peajes}")
+                        if parqueaderos is None:
+                            parqueaderos = numbers[0]
+                            st.success(f"✅ Parqueaderos asignado desde tabla: {parqueaderos}")
+                        if peajes is None:
+                            peajes = numbers[1]
+                            st.success(f"✅ Peajes asignado desde tabla: {peajes}")
                         break
         
-        # ESTRATEGIA FINAL: Buscar en todo el HTML como último recurso
-        if parqueaderos is None or peajes is None:
-            st.info("🔍 Búsqueda exhaustiva en todo el contenido...")
-            
-            full_html = str(soup)
-            
-            # Buscar patrones específicos en todo el HTML
-            patterns = [
-                r'Parqueaderos[^0-9]*(\d+)',
-                r'Peajes[^0-9]*(\d+)',
-            ]
-            
-            for pattern in patterns:
-                matches = re.findall(pattern, full_html)
-                if matches:
-                    if 'Parqueaderos' in pattern and parqueaderos is None:
-                        parqueaderos = int(matches[0])
-                        st.success(f"✅ Parqueaderos encontrado con búsqueda exhaustiva: {parqueaderos}")
-                    if 'Peajes' in pattern and peajes is None:
-                        peajes = int(matches[0])
-                        st.success(f"✅ Peajes encontrado con búsqueda exhaustiva: {peajes}")
-        
-        # VERIFICACIÓN FINAL
+        # Verificación final
         if parqueaderos is None:
             st.error("❌ No se pudo encontrar el valor de Parqueaderos")
-            return None
-            
+        
         if peajes is None:
             st.error("❌ No se pudo encontrar el valor de Peajes")
-            return None
         
-        st.success(f"🎉 Datos obtenidos exitosamente: Parqueaderos {parqueaderos}, Peajes {peajes}")
-        return {
-            "parqueaderos": parqueaderos,
-            "peajes": peajes
-        }
+        return parqueaderos, peajes
         
     except Exception as e:
-        st.error(f"❌ Error crítico al obtener datos de Power BI: {e}")
+        st.error(f"❌ Error durante la búsqueda: {str(e)}")
+        return None, None
+
+def get_powerbi_data():
+    """
+    Obtiene los datos de facturas sin CUFE del reporte de Power BI usando Selenium
+    VERSIÓN MEJORADA basada en el código que funciona
+    """
+    try:
+        POWERBI_URL = "https://app.powerbi.com/view?r=eyJrIjoiMjUyNTBjMTItOWZlNy00YTY2LWIzMTQtNmM3OGU4ZWM1ZmQxIiwidCI6ImY5MTdlZDFiLWI0MDMtNDljNS1iODBiLWJhYWUzY2UwMzc1YSJ9"
+        
+        st.info("🌐 Conectando con Power BI...")
+        
+        # Configurar el driver
+        driver = setup_driver()
+        if not driver:
+            st.error("❌ No se pudo inicializar el driver de Selenium")
+            return None
+        
+        try:
+            # Navegar al reporte
+            st.info("⏳ Cargando dashboard de Power BI...")
+            driver.get(POWERBI_URL)
+            
+            # Esperar a que cargue la página
+            st.info("⏳ Esperando a que carguen los datos...")
+            time.sleep(15)  # Espera para que se renderice el contenido
+            
+            # Tomar screenshot para debug
+            try:
+                driver.save_screenshot("powerbi_screenshot.png")
+                st.info("📸 Screenshot guardado para debug")
+            except:
+                pass
+            
+            # Buscar los valores de Parqueaderos y Peajes
+            parqueaderos, peajes = find_parqueaderos_peajes_values(driver)
+            
+            # Mostrar el texto completo de la página para debug (solo primeras líneas)
+            with st.expander("🔍 Ver texto extraído de la página (primeras 50 líneas)"):
+                page_text = driver.find_element(By.TAG_NAME, "body").text
+                lines = page_text.split('\n')[:50]
+                st.text('\n'.join(lines))
+            
+            if parqueaderos is None or peajes is None:
+                st.error("❌ No se pudieron extraer los valores del dashboard")
+                st.warning("💡 Verifica que el dashboard esté público y los datos sean visibles")
+                return None
+            
+            # Convertir a enteros
+            try:
+                parqueaderos_num = int(parqueaderos.replace(',', ''))
+                peajes_num = int(peajes.replace(',', ''))
+                
+                st.success(f"🎉 Datos obtenidos exitosamente!")
+                st.success(f"📊 Parqueaderos: {parqueaderos_num:,}")
+                st.success(f"📊 Peajes: {peajes_num:,}")
+                
+                return {
+                    "parqueaderos": parqueaderos_num,
+                    "peajes": peajes_num
+                }
+            except ValueError as e:
+                st.error(f"❌ Error convirtiendo valores a números: {e}")
+                return None
+            
+        finally:
+            driver.quit()
+            st.info("✅ Driver cerrado correctamente")
+        
+    except Exception as e:
+        st.error(f"❌ Error crítico al obtener datos de Power BI: {str(e)}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
         return None
+
+# ===========================
+# FUNCIONES DE SCRAPING
+# ===========================
 
 def run_scraper(name, scraper_class, username, password):
     scraper = scraper_class()
@@ -241,12 +425,11 @@ def run_scraper(name, scraper_class, username, password):
     if ok:
         # Obtenemos datos según cada scraper
         data = scraper.get_pending_invoices()
-        # --- CORRECCIÓN: convertir listas a DataFrame para que la UI las muestre ---
+        # Convertir listas a DataFrame para que la UI las muestre
         if isinstance(data, list):
             try:
                 result["data"] = pd.DataFrame(data) if len(data) > 0 else pd.DataFrame()
             except Exception:
-                # fallback: intentar construir DataFrame de forma segura
                 try:
                     result["data"] = pd.DataFrame([data])
                 except Exception:
@@ -254,7 +437,6 @@ def run_scraper(name, scraper_class, username, password):
         elif isinstance(data, pd.DataFrame):
             result["data"] = data
         else:
-            # si el scraper devuelve dict o None, intentar transformar a DataFrame
             try:
                 result["data"] = pd.DataFrame(data) if data else pd.DataFrame()
             except Exception:
@@ -268,7 +450,7 @@ def run_scraper(name, scraper_class, username, password):
             except Exception:
                 jobs = pd.DataFrame()
 
-        # ✅ Filtro especial SOLO para Arkadia
+        # Filtro especial SOLO para Arkadia
         if name == "arkadia" and isinstance(jobs, pd.DataFrame) and not jobs.empty:
             jobs = jobs.rename(columns={
                 "jobname": "NOMBRE",
@@ -281,6 +463,21 @@ def run_scraper(name, scraper_class, username, password):
         result["jobs"] = jobs
         result["invoices"] = scraper.get_invoices()
     return name, result
+
+# ===========================
+# FORMATO DE FECHA
+# ===========================
+
+def format_fecha(fecha):
+    """Convierte la fecha a formato dd/mm/yyyy HH:MM"""
+    try:
+        return pd.to_datetime(fecha).strftime("%d/%m/%Y %H:%M")
+    except:
+        return str(fecha)
+
+# ===========================
+# INTERFAZ PRINCIPAL
+# ===========================
 
 if st.button("Ejecutar scraping de todos los centros comerciales"):
     with st.spinner("🔑 Ejecutando scrapers en paralelo..."):
@@ -365,12 +562,6 @@ with tab_arkadia:
 # ===========================
 # BOTÓN GENERAR MENSAJE WHATSAPP
 # ===========================
-def format_fecha(fecha):
-    """Convierte la fecha a formato dd/mm/yyyy HH:MM"""
-    try:
-        return pd.to_datetime(fecha).strftime("%d/%m/%Y %H:%M")
-    except:
-        return str(fecha)
 
 if st.session_state.get("scraping_done", False):
     if st.button("📩 Generar mensaje de WhatsApp"):
@@ -396,7 +587,7 @@ if st.session_state.get("scraping_done", False):
                 pendientes = 0
                 data = state["data"]
 
-                # ✅ Diferenciamos Arkadia vs los demás
+                # Diferenciamos Arkadia vs los demás
                 if name == "arkadia":
                     if isinstance(data, pd.DataFrame) and not data.empty:
                         if "pending" in data.columns:
@@ -428,6 +619,6 @@ if st.session_state.get("scraping_done", False):
                 )
         
         # Añadir los datos de Power BI al mensaje
-        mensaje += f"\nFacturas sin CUFE:\n\nParqueaderos: {powerbi_data['parqueaderos']}\nPeajes: {powerbi_data['peajes']}"
+        mensaje += f"\nFacturas sin CUFE:\n\nParqueaderos: {powerbi_data['parqueaderos']:,}\nPeajes: {powerbi_data['peajes']:,}"
 
         st.text_area("Mensaje generado", mensaje, height=300)
