@@ -352,7 +352,7 @@ def find_parqueaderos_peajes_values(driver):
                             except:
                                 pass
         
-        # BUSCAR ASOCIADOS - ESTRATEGIA MEJORADA
+        # BUSCAR ASOCIADOS - ESTRATEGIA MEJORADA PARA FORMATO DE LÍNEAS SEPARADAS
         try:
             st.info("🔍 Buscando datos de asociados...")
             
@@ -366,16 +366,11 @@ def find_parqueaderos_peajes_values(driver):
             
             if start_index != -1:
                 # Buscar desde la sección de Asociado hacia adelante
-                in_asociados_section = False
                 asociados_encontrados = 0
+                current_asociado = None
                 
-                for i in range(start_index, min(start_index + 50, len(lines))):
+                for i in range(start_index + 1, min(start_index + 30, len(lines))):
                     line_clean = lines[i].strip()
-                    
-                    # Saltar líneas vacías o de encabezados
-                    if not line_clean or any(keyword in line_clean.lower() for keyword in 
-                                           ['asociado', 'sum of cantidad', 'scroll', 'select row', 'servicio', 'cantidad']):
-                        continue
                     
                     # Si encontramos "Total" después de algunos asociados, terminamos
                     if 'total' in line_clean.lower() and asociados_encontrados > 0:
@@ -384,78 +379,61 @@ def find_parqueaderos_peajes_values(driver):
                             st.success(f"📊 Total de asociados encontrado: {total_match.group(1)}")
                         break
                     
-                    # Buscar patrones de asociado: texto + número
-                    # Patrón para líneas como "AUTOPISTA RIO MAGDALENA 38"
-                    asociado_pattern1 = r'^([A-Za-z\s]+?)\s+(\d{1,3}(?:,\d{3})*)$'
-                    # Patrón para líneas que pueden tener espacios extra
-                    asociado_pattern2 = r'^([A-Z][A-Za-z\s]+?)\s+(\d+)$'
+                    # Saltar líneas vacías o de encabezados/controles
+                    if (not line_clean or 
+                        any(keyword in line_clean.lower() for keyword in 
+                            ['asociado', 'sum of cantidad', 'scroll', 'select row', 'servicio', 'cantidad', 'row selection', 'microsoft'])):
+                        continue
                     
-                    match1 = re.match(asociado_pattern1, line_clean)
-                    match2 = re.match(asociado_pattern2, line_clean)
-                    
-                    if match1:
-                        asociado_nombre = match1.group(1).strip()
-                        asociado_cantidad = match1.group(2)
-                        asociados_data[asociado_nombre] = asociado_cantidad
-                        asociados_encontrados += 1
-                        st.info(f"✅ Asociado encontrado: {asociado_nombre} = {asociado_cantidad}")
+                    # Si la línea parece ser un nombre de asociado (texto sin números)
+                    if (re.match(r'^[A-Za-z\s]+$', line_clean) and 
+                        len(line_clean) > 2 and
+                        not any(keyword in line_clean.lower() for keyword in ['up', 'down', 'left', 'right'])):
                         
-                    elif match2:
-                        asociado_nombre = match2.group(1).strip()
-                        asociado_cantidad = match2.group(2)
-                        asociados_data[asociado_nombre] = asociado_cantidad
-                        asociados_encontrados += 1
-                        st.info(f"✅ Asociado encontrado: {asociado_nombre} = {asociado_cantidad}")
+                        current_asociado = line_clean
+                        st.info(f"📝 Asociado identificado: {current_asociado}")
                     
-                    # También buscar por separación clara entre nombre y número
-                    elif re.search(r'[A-Z]', line_clean) and re.search(r'\d', line_clean):
-                        # Dividir por el último espacio que precede a un número
-                        parts = line_clean.rsplit(' ', 1)
-                        if len(parts) == 2:
-                            nombre_candidato = parts[0].strip()
-                            cantidad_candidato = parts[1].strip()
-                            
-                            if (nombre_candidato and 
-                                re.match(r'^[A-Z]', nombre_candidato) and 
-                                re.match(r'^\d{1,6}$', cantidad_candidato) and
-                                len(nombre_candidato) > 2):
-                                
-                                asociados_data[nombre_candidato] = cantidad_candidato
-                                asociados_encontrados += 1
-                                st.info(f"✅ Asociado encontrado (método alternativo): {nombre_candidato} = {cantidad_candidato}")
+                    # Si la línea parece ser un número y tenemos un asociado pendiente
+                    elif (current_asociado and 
+                          re.match(r'^\d{1,6}$', line_clean) and
+                          line_clean not in ['-', '+', '130']):
+                        
+                        asociados_data[current_asociado] = line_clean
+                        st.success(f"✅ Asociado encontrado: {current_asociado} = {line_clean}")
+                        asociados_encontrados += 1
+                        current_asociado = None
             
-            # Si no encontramos con el método anterior, buscar por contexto de tabla
+            # Si no encontramos con el método anterior, intentar método alternativo
             if not asociados_data:
                 st.info("🔍 Buscando asociados por método alternativo...")
                 
-                # Buscar todas las líneas que tengan formato de tabla
+                # Buscar patrones específicos en el texto completo
                 for i, line in enumerate(lines):
                     line_clean = line.strip()
                     
-                    # Filtrar líneas que parecen ser datos de tabla
-                    if (line_clean and 
-                        not any(keyword in line_clean.lower() for keyword in 
-                               ['scroll', 'select', 'row', 'servicio', 'cantidad', 'asociado', 'sum of', 'total', 'microsoft']) and
-                        re.search(r'[A-Z]', line_clean) and 
-                        re.search(r'\b\d{2,}\b', line_clean)):
-                        
-                        # Intentar dividir la línea
-                        parts = re.split(r'\s{2,}', line_clean)  # Dividir por múltiples espacios
-                        if len(parts) >= 2:
-                            posible_nombre = parts[0].strip()
-                            posible_cantidad = parts[-1].strip()
-                            
-                            if (posible_nombre and 
-                                re.match(r'^[A-Z]', posible_nombre) and
-                                re.match(r'^\d{1,6}$', posible_cantidad) and
-                                len(posible_nombre) > 2):
+                    # Buscar líneas que sean solo números (cantidades)
+                    if re.match(r'^\d{1,6}$', line_clean) and line_clean not in ['0', '467', '1292']:
+                        # Buscar hacia atrás para encontrar el asociado
+                        for j in range(max(0, i-5), i):
+                            prev_line = lines[j].strip()
+                            if (prev_line and 
+                                re.match(r'^[A-Z][A-Za-z\s]+$', prev_line) and
+                                len(prev_line) > 2 and
+                                not any(keyword in prev_line.lower() for keyword in 
+                                       ['scroll', 'select', 'row', 'servicio', 'cantidad', 'asociado', 'total', 'parqueaderos', 'peajes'])):
                                 
-                                asociados_data[posible_nombre] = posible_cantidad
-                                st.info(f"✅ Asociado encontrado (tabla): {posible_nombre} = {posible_cantidad}")
+                                asociados_data[prev_line] = line_clean
+                                st.success(f"✅ Asociado encontrado (alternativo): {prev_line} = {line_clean}")
+                                break
             
             if asociados_data:
-                total_asociados = sum(int(cant.replace(',', '')) for cant in asociados_data.values())
+                total_asociados = sum(int(cant) for cant in asociados_data.values())
                 st.success(f"🎉 Encontrados {len(asociados_data)} asociados con un total de {total_asociados:,}")
+                
+                # Mostrar tabla de asociados encontrados
+                st.subheader("📋 Asociados encontrados")
+                df_asociados = pd.DataFrame(list(asociados_data.items()), columns=['Asociado', 'Cantidad'])
+                st.dataframe(df_asociados)
             else:
                 st.warning("⚠️ No se encontraron datos de asociados en el BI")
                 
