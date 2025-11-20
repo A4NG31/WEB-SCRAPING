@@ -128,8 +128,6 @@ def setup_driver():
         
         # MÉTODO 1: Usar webdriver-manager con CHROMIUM
         try:
-            st.info("🔄 Configurando ChromeDriver con webdriver-manager...")
-            
             # Instalar chromedriver compatible con chromium
             service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
             
@@ -139,32 +137,22 @@ def setup_driver():
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             
-            st.success("✅ ChromeDriver configurado exitosamente")
             return driver
             
         except Exception as e1:
-            st.warning(f"⚠️ Método 1 falló: {e1}")
-            
             # MÉTODO 2: Sin especificar chrome_type
             try:
-                st.info("🔄 Intentando método alternativo...")
-                
                 service = Service(ChromeDriverManager().install())
                 chrome_options.binary_location = "/usr/bin/chromium"
                 
                 driver = webdriver.Chrome(service=service, options=chrome_options)
                 driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
                 
-                st.success("✅ ChromeDriver configurado con método alternativo")
                 return driver
                 
             except Exception as e2:
-                st.error(f"❌ Método 2 también falló: {e2}")
-                
                 # MÉTODO 3: Usar chromedriver del sistema directamente
                 try:
-                    st.info("🔄 Intentando con chromedriver del sistema...")
-                    
                     import subprocess
                     import os
                     
@@ -174,8 +162,6 @@ def setup_driver():
                     chromedriver_path = result.stdout.strip()
                     
                     if chromedriver_path and os.path.exists(chromedriver_path):
-                        st.info(f"📍 ChromeDriver encontrado en: {chromedriver_path}")
-                        
                         # Hacer ejecutable
                         os.chmod(chromedriver_path, 0o755)
                         
@@ -185,59 +171,14 @@ def setup_driver():
                         driver = webdriver.Chrome(service=service, options=chrome_options)
                         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
                         
-                        st.success("✅ ChromeDriver del sistema configurado")
                         return driver
                     else:
-                        st.error("❌ ChromeDriver no encontrado en el sistema")
                         return None
                         
                 except Exception as e3:
-                    st.error(f"❌ Método 3 falló: {e3}")
-                    
-                    # Mostrar información de debug
-                    with st.expander("🔍 Información de Debug"):
-                        import subprocess
-                        
-                        st.text("=== Verificando Chromium ===")
-                        try:
-                            result = subprocess.run(['which', 'chromium'], 
-                                                  capture_output=True, text=True, timeout=5)
-                            st.text(f"which chromium: {result.stdout}")
-                            st.text(f"stderr: {result.stderr}")
-                        except Exception as e:
-                            st.text(f"Error: {e}")
-                        
-                        st.text("\n=== Verificando ChromeDriver ===")
-                        try:
-                            result = subprocess.run(['which', 'chromedriver'], 
-                                                  capture_output=True, text=True, timeout=5)
-                            st.text(f"which chromedriver: {result.stdout}")
-                            st.text(f"stderr: {result.stderr}")
-                        except Exception as e:
-                            st.text(f"Error: {e}")
-                        
-                        st.text("\n=== Archivos en /usr/bin ===")
-                        try:
-                            result = subprocess.run(['ls', '-la', '/usr/bin/chrom*'], 
-                                                  capture_output=True, text=True, timeout=5, shell=True)
-                            st.text(result.stdout)
-                        except Exception as e:
-                            st.text(f"Error: {e}")
-                        
-                        st.text("\n=== Verificando dependencias ===")
-                        try:
-                            result = subprocess.run(['ldd', '/usr/bin/chromium'], 
-                                                  capture_output=True, text=True, timeout=5)
-                            st.text(result.stdout[:500])  # Primeras líneas
-                        except Exception as e:
-                            st.text(f"Error: {e}")
-                    
                     return None
         
     except Exception as e:
-        st.error(f"❌ Error crítico al configurar ChromeDriver: {e}")
-        import traceback
-        st.error(traceback.format_exc())
         return None
 
 def extract_number_from_text(text):
@@ -263,7 +204,6 @@ def find_parqueaderos_peajes_values(driver):
     Y también extraer la fecha analizada y los asociados
     """
     try:
-        
         # Esperar a que la página cargue completamente
         time.sleep(8)
         
@@ -278,19 +218,16 @@ def find_parqueaderos_peajes_values(driver):
         fecha_analizada = None
         asociados_data = {}
         
-        # ESTRATEGIA 1: Buscar en líneas consecutivas
+        # Buscar en líneas consecutivas
         for i, line in enumerate(lines):
             line_clean = line.strip()
             
             # Buscar "Parqueaderos"
             if 'parqueaderos' in line_clean.lower() and parqueaderos is None:
-                
-                # Buscar número en la misma línea
                 num = extract_number_from_text(line_clean)
                 if num:
                     parqueaderos = num
                 else:
-                    # Buscar en las siguientes 5 líneas
                     for offset in range(1, 6):
                         if i + offset < len(lines):
                             next_line = lines[i + offset].strip()
@@ -301,13 +238,10 @@ def find_parqueaderos_peajes_values(driver):
             
             # Buscar "Peajes"
             if 'peajes' in line_clean.lower() and peajes is None:
-                
-                # Buscar número en la misma línea
                 num = extract_number_from_text(line_clean)
                 if num:
                     peajes = num
                 else:
-                    # Buscar en las siguientes 5 líneas
                     for offset in range(1, 6):
                         if i + offset < len(lines):
                             next_line = lines[i + offset].strip()
@@ -318,25 +252,19 @@ def find_parqueaderos_peajes_values(driver):
             
             # Buscar fecha en formato MM/DD/YYYY o DD/MM/YYYY
             if fecha_analizada is None:
-                # Buscar patrones de fecha comunes en Power BI
                 fecha_patterns = [
-                    r'\b\d{1,2}/\d{1,2}/\d{4}\b',  # MM/DD/YYYY o DD/MM/YYYY
-                    r'\b\d{1,2}-\d{1,2}-\d{4}\b',  # MM-DD-YYYY o DD-MM-YYYY
-                    r'\b\d{4}/\d{1,2}/\d{1,2}\b',  # YYYY/MM/DD
+                    r'\b\d{1,2}/\d{1,2}/\d{4}\b',
+                    r'\b\d{1,2}-\d{1,2}-\d{4}\b',
+                    r'\b\d{4}/\d{1,2}/\d{1,2}\b',
                 ]
                 
                 for pattern in fecha_patterns:
                     fecha_match = re.search(pattern, line_clean)
                     if fecha_match:
                         fecha_cruda = fecha_match.group(0)
-                        
-                        # Verificar si es una fecha válida (no parte de un número grande)
-                        if not re.search(r'\d{5,}', fecha_cruda):  # Evitar números grandes como 12345/67/89
+                        if not re.search(r'\d{5,}', fecha_cruda):
                             try:
-                                # Convertir a datetime para validar
                                 fecha_obj = None
-                                
-                                # Intentar diferentes formatos
                                 for fmt in ['%m/%d/%Y', '%d/%m/%Y', '%Y/%m/%d', '%m-%d-%Y', '%d-%m-%Y']:
                                     try:
                                         fecha_obj = datetime.strptime(fecha_cruda, fmt)
@@ -345,23 +273,18 @@ def find_parqueaderos_peajes_values(driver):
                                         continue
                                 
                                 if fecha_obj:
-                                    # Formatear a DD/MM/YYYY
                                     fecha_analizada = fecha_obj.strftime('%d/%m/%Y')
-                                    st.success(f"📅 Fecha analizada encontrada: {fecha_analizada}")
                                     break
                             except:
                                 pass
         
-        # BUSCAR ASOCIADOS - ESTRATEGIA MEJORADA PARA FORMATO DE LÍNEAS SEPARADAS
+        # BUSCAR ASOCIADOS
         try:
-            st.info("🔍 Buscando datos de asociados...")
-            
             # Buscar la sección de "Asociado" en el texto
             start_index = -1
             for i, line in enumerate(lines):
                 if 'asociado' in line.lower():
                     start_index = i
-                    st.success(f"📍 Encontrada sección 'Asociado' en línea {i}")
                     break
             
             if start_index != -1:
@@ -374,9 +297,6 @@ def find_parqueaderos_peajes_values(driver):
                     
                     # Si encontramos "Total" después de algunos asociados, terminamos
                     if 'total' in line_clean.lower() and asociados_encontrados > 0:
-                        total_match = re.search(r'(\d{1,3}(?:,\d{3})*)', line_clean)
-                        if total_match:
-                            st.success(f"📊 Total de asociados encontrado: {total_match.group(1)}")
                         break
                     
                     # Saltar líneas vacías o de encabezados/controles
@@ -391,7 +311,6 @@ def find_parqueaderos_peajes_values(driver):
                         not any(keyword in line_clean.lower() for keyword in ['up', 'down', 'left', 'right'])):
                         
                         current_asociado = line_clean
-                        st.info(f"📝 Asociado identificado: {current_asociado}")
                     
                     # Si la línea parece ser un número y tenemos un asociado pendiente
                     elif (current_asociado and 
@@ -399,14 +318,11 @@ def find_parqueaderos_peajes_values(driver):
                           line_clean not in ['-', '+', '130']):
                         
                         asociados_data[current_asociado] = line_clean
-                        st.success(f"✅ Asociado encontrado: {current_asociado} = {line_clean}")
                         asociados_encontrados += 1
                         current_asociado = None
             
             # Si no encontramos con el método anterior, intentar método alternativo
             if not asociados_data:
-                st.info("🔍 Buscando asociados por método alternativo...")
-                
                 # Buscar patrones específicos en el texto completo
                 for i, line in enumerate(lines):
                     line_clean = line.strip()
@@ -423,48 +339,30 @@ def find_parqueaderos_peajes_values(driver):
                                        ['scroll', 'select', 'row', 'servicio', 'cantidad', 'asociado', 'total', 'parqueaderos', 'peajes'])):
                                 
                                 asociados_data[prev_line] = line_clean
-                                st.success(f"✅ Asociado encontrado (alternativo): {prev_line} = {line_clean}")
                                 break
-            
-            if asociados_data:
-                total_asociados = sum(int(cant) for cant in asociados_data.values())
-                st.success(f"🎉 Encontrados {len(asociados_data)} asociados con un total de {total_asociados:,}")
-                
-                # Mostrar tabla de asociados encontrados
-                st.subheader("📋 Asociados encontrados")
-                df_asociados = pd.DataFrame(list(asociados_data.items()), columns=['Asociado', 'Cantidad'])
-                st.dataframe(df_asociados)
-            else:
-                st.warning("⚠️ No se encontraron datos de asociados en el BI")
                 
         except Exception as e:
-            st.error(f"❌ Error al buscar asociados: {e}")
-            import traceback
-            st.error(traceback.format_exc())
+            pass
         
-        # ESTRATEGIA 3: Búsqueda por patrones regex en todo el texto
+        # Búsqueda por patrones regex en todo el texto
         if parqueaderos is None or peajes is None or fecha_analizada is None:
             
             if parqueaderos is None:
-                # Buscar patrón "Parqueaderos" seguido de número
                 match = re.search(r'[Pp]arqueaderos[^\d]*(\d{1,3}(?:,\d{3})*)', page_text)
                 if match:
                     parqueaderos = match.group(1)
             
             if peajes is None:
-                # Buscar patrón "Peajes" seguido de número
                 match = re.search(r'[Pp]eajes[^\d]*(\d{1,3}(?:,\d{3})*)', page_text)
                 if match:
                     peajes = match.group(1)
             
             if fecha_analizada is None:
-                # Buscar fechas en todo el texto
                 fecha_match = re.search(r'\b(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/(202[4-9])\b', page_text)
                 if fecha_match:
                     try:
                         mes, dia, año = fecha_match.groups()
                         fecha_analizada = f"{int(dia):02d}/{int(mes):02d}/{año}"
-                        st.success(f"📅 Fecha encontrada con regex: {fecha_analizada}")
                     except:
                         pass
         
@@ -476,25 +374,20 @@ def find_parqueaderos_peajes_values(driver):
             st.error("❌ No se pudo encontrar el valor de Peajes")
         
         if fecha_analizada is None:
-            st.warning("⚠️ No se pudo encontrar la fecha analizada en el BI")
             # Usar fecha actual como fallback
             fecha_analizada = datetime.now().strftime('%d/%m/%Y')
-            st.info(f"📅 Usando fecha actual: {fecha_analizada}")
         
         return parqueaderos, peajes, fecha_analizada, asociados_data
         
     except Exception as e:
-        st.error(f"❌ Error durante la búsqueda: {str(e)}")
         return None, None, None, {}
 
 def get_powerbi_data():
     """
     Obtiene los datos de facturas sin CUFE del reporte de Power BI usando Selenium
-    VERSIÓN MEJORADA que también extrae la fecha analizada y los asociados
     """
     try:
         POWERBI_URL = "https://app.powerbi.com/view?r=eyJrIjoiMjUyNTBjMTItOWZlNy00YTY2LWIzMTQtNmM3OGU4ZWM1ZmQxIiwidCI6ImY5MTdlZDFiLWI0MDMtNDljNS1iODBiLWJhYWUzY2UwMzc1YSJ9"
-        
         
         # Configurar el driver
         driver = setup_driver()
@@ -507,26 +400,13 @@ def get_powerbi_data():
             driver.get(POWERBI_URL)
             
             # Esperar a que cargue la página
-            time.sleep(15)  # Espera para que se renderice el contenido
-            
-            # Tomar screenshot para debug
-            try:
-                driver.save_screenshot("powerbi_screenshot.png")
-            except:
-                pass
+            time.sleep(15)
             
             # Buscar los valores de Parqueaderos, Peajes, Fecha y Asociados
             parqueaderos, peajes, fecha_analizada, asociados_data = find_parqueaderos_peajes_values(driver)
             
-            # Mostrar el texto completo de la página para debug (solo primeras líneas)
-            with st.expander("🔍 Ver texto extraído de la página (primeras 50 líneas)"):
-                page_text = driver.find_element(By.TAG_NAME, "body").text
-                lines = page_text.split('\n')[:50]
-                st.text('\n'.join(lines))
-            
             if parqueaderos is None or peajes is None:
                 st.error("❌ No se pudieron extraer los valores del dashboard")
-                st.warning("💡 Verifica que el dashboard esté público y los datos sean visibles")
                 return None
             
             # Convertir a enteros
@@ -549,8 +429,6 @@ def get_powerbi_data():
         
     except Exception as e:
         st.error(f"❌ Error crítico al obtener datos de Power BI: {str(e)}")
-        import traceback
-        st.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 # ===========================
