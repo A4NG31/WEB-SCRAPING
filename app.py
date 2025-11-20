@@ -352,112 +352,117 @@ def find_parqueaderos_peajes_values(driver):
                             except:
                                 pass
         
-        # ESTRATEGIA 2: Buscar por elementos HTML si la estrategia 1 falló
-        if parqueaderos is None or peajes is None or fecha_analizada is None:
+        # BUSCAR ASOCIADOS - ESTRATEGIA MEJORADA
+        try:
+            st.info("🔍 Buscando datos de asociados...")
             
-            # Buscar todos los elementos que contengan "Parqueaderos"
-            if parqueaderos is None:
-                try:
-                    parq_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'Parqueaderos') or contains(text(), 'parqueaderos') or contains(text(), 'PARQUEADEROS')]")
-                    
-                    for elem in parq_elements:
-                        if elem.is_displayed():
-                            # Buscar en el contenedor padre
-                            try:
-                                parent = elem.find_element(By.XPATH, "./..")
-                                parent_text = parent.text
-                                num = extract_number_from_text(parent_text)
-                                if num:
-                                    parqueaderos = num
-                                    break
-                            except:
-                                pass
-                            
-                            # Buscar en elementos hermanos
-                            try:
-                                parent = elem.find_element(By.XPATH, "./..")
-                                siblings = parent.find_elements(By.XPATH, "./*")
-                                for sibling in siblings:
-                                    if sibling != elem:
-                                        sibling_text = sibling.text.strip()
-                                        num = extract_number_from_text(sibling_text)
-                                        if num:
-                                            parqueaderos = num
-                                            break
-                            except:
-                                pass
-                except Exception as e:
-                    st.warning(f"⚠️ Error en búsqueda de Parqueaderos: {e}")
+            # Buscar la sección de "Asociado" en el texto
+            start_index = -1
+            for i, line in enumerate(lines):
+                if 'asociado' in line.lower():
+                    start_index = i
+                    st.success(f"📍 Encontrada sección 'Asociado' en línea {i}")
+                    break
             
-            # Buscar todos los elementos que contengan "Peajes"
-            if peajes is None:
-                try:
-                    peaj_elements = driver.find_elements(By.XPATH, "//*[contains(text(), 'Peajes') or contains(text(), 'peajes') or contains(text(), 'PEAJES')]")
+            if start_index != -1:
+                # Buscar desde la sección de Asociado hacia adelante
+                in_asociados_section = False
+                asociados_encontrados = 0
+                
+                for i in range(start_index, min(start_index + 50, len(lines))):
+                    line_clean = lines[i].strip()
                     
-                    for elem in peaj_elements:
-                        if elem.is_displayed():
-                            # Buscar en el contenedor padre
-                            try:
-                                parent = elem.find_element(By.XPATH, "./..")
-                                parent_text = parent.text
-                                num = extract_number_from_text(parent_text)
-                                if num:
-                                    peajes = num
-                                    break
-                            except:
-                                pass
+                    # Saltar líneas vacías o de encabezados
+                    if not line_clean or any(keyword in line_clean.lower() for keyword in 
+                                           ['asociado', 'sum of cantidad', 'scroll', 'select row', 'servicio', 'cantidad']):
+                        continue
+                    
+                    # Si encontramos "Total" después de algunos asociados, terminamos
+                    if 'total' in line_clean.lower() and asociados_encontrados > 0:
+                        total_match = re.search(r'(\d{1,3}(?:,\d{3})*)', line_clean)
+                        if total_match:
+                            st.success(f"📊 Total de asociados encontrado: {total_match.group(1)}")
+                        break
+                    
+                    # Buscar patrones de asociado: texto + número
+                    # Patrón para líneas como "AUTOPISTA RIO MAGDALENA 38"
+                    asociado_pattern1 = r'^([A-Za-z\s]+?)\s+(\d{1,3}(?:,\d{3})*)$'
+                    # Patrón para líneas que pueden tener espacios extra
+                    asociado_pattern2 = r'^([A-Z][A-Za-z\s]+?)\s+(\d+)$'
+                    
+                    match1 = re.match(asociado_pattern1, line_clean)
+                    match2 = re.match(asociado_pattern2, line_clean)
+                    
+                    if match1:
+                        asociado_nombre = match1.group(1).strip()
+                        asociado_cantidad = match1.group(2)
+                        asociados_data[asociado_nombre] = asociado_cantidad
+                        asociados_encontrados += 1
+                        st.info(f"✅ Asociado encontrado: {asociado_nombre} = {asociado_cantidad}")
+                        
+                    elif match2:
+                        asociado_nombre = match2.group(1).strip()
+                        asociado_cantidad = match2.group(2)
+                        asociados_data[asociado_nombre] = asociado_cantidad
+                        asociados_encontrados += 1
+                        st.info(f"✅ Asociado encontrado: {asociado_nombre} = {asociado_cantidad}")
+                    
+                    # También buscar por separación clara entre nombre y número
+                    elif re.search(r'[A-Z]', line_clean) and re.search(r'\d', line_clean):
+                        # Dividir por el último espacio que precede a un número
+                        parts = line_clean.rsplit(' ', 1)
+                        if len(parts) == 2:
+                            nombre_candidato = parts[0].strip()
+                            cantidad_candidato = parts[1].strip()
                             
-                            # Buscar en elementos hermanos
-                            try:
-                                parent = elem.find_element(By.XPATH, "./..")
-                                siblings = parent.find_elements(By.XPATH, "./*")
-                                for sibling in siblings:
-                                    if sibling != elem:
-                                        sibling_text = sibling.text.strip()
-                                        num = extract_number_from_text(sibling_text)
-                                        if num:
-                                            peajes = num
-                                            break
-                            except:
-                                pass
-                except Exception as e:
-                    st.warning(f"⚠️ Error en búsqueda de Peajes: {e}")
+                            if (nombre_candidato and 
+                                re.match(r'^[A-Z]', nombre_candidato) and 
+                                re.match(r'^\d{1,6}$', cantidad_candidato) and
+                                len(nombre_candidato) > 2):
+                                
+                                asociados_data[nombre_candidato] = cantidad_candidato
+                                asociados_encontrados += 1
+                                st.info(f"✅ Asociado encontrado (método alternativo): {nombre_candidato} = {cantidad_candidato}")
             
-            # Buscar fecha en elementos específicos
-            if fecha_analizada is None:
-                try:
-                    # Buscar elementos que contengan fechas
-                    fecha_elements = driver.find_elements(By.XPATH, "//*[contains(text(), '/202') or contains(text(), '-202')]")
+            # Si no encontramos con el método anterior, buscar por contexto de tabla
+            if not asociados_data:
+                st.info("🔍 Buscando asociados por método alternativo...")
+                
+                # Buscar todas las líneas que tengan formato de tabla
+                for i, line in enumerate(lines):
+                    line_clean = line.strip()
                     
-                    for elem in fecha_elements:
-                        if elem.is_displayed():
-                            elem_text = elem.text.strip()
-                            # Buscar patrones de fecha
-                            fecha_patterns = [
-                                r'\b\d{1,2}/\d{1,2}/202\d\b',
-                                r'\b\d{1,2}-\d{1,2}-202\d\b',
-                            ]
+                    # Filtrar líneas que parecen ser datos de tabla
+                    if (line_clean and 
+                        not any(keyword in line_clean.lower() for keyword in 
+                               ['scroll', 'select', 'row', 'servicio', 'cantidad', 'asociado', 'sum of', 'total', 'microsoft']) and
+                        re.search(r'[A-Z]', line_clean) and 
+                        re.search(r'\b\d{2,}\b', line_clean)):
+                        
+                        # Intentar dividir la línea
+                        parts = re.split(r'\s{2,}', line_clean)  # Dividir por múltiples espacios
+                        if len(parts) >= 2:
+                            posible_nombre = parts[0].strip()
+                            posible_cantidad = parts[-1].strip()
                             
-                            for pattern in fecha_patterns:
-                                fecha_match = re.search(pattern, elem_text)
-                                if fecha_match:
-                                    fecha_cruda = fecha_match.group(0)
-                                    try:
-                                        # Intentar diferentes formatos
-                                        for fmt in ['%m/%d/%Y', '%d/%m/%Y', '%m-%d-%Y', '%d-%m-%Y']:
-                                            try:
-                                                fecha_obj = datetime.strptime(fecha_cruda, fmt)
-                                                fecha_analizada = fecha_obj.strftime('%d/%m/%Y')
-                                                st.success(f"📅 Fecha encontrada en elemento: {fecha_analizada}")
-                                                break
-                                            except:
-                                                continue
-                                        if fecha_analizada:
-                                            break
-                                    except:
-                                        pass
-                except Exception as e:
-                    st.warning(f"⚠️ Error en búsqueda de fecha: {e}")
+                            if (posible_nombre and 
+                                re.match(r'^[A-Z]', posible_nombre) and
+                                re.match(r'^\d{1,6}$', posible_cantidad) and
+                                len(posible_nombre) > 2):
+                                
+                                asociados_data[posible_nombre] = posible_cantidad
+                                st.info(f"✅ Asociado encontrado (tabla): {posible_nombre} = {posible_cantidad}")
+            
+            if asociados_data:
+                total_asociados = sum(int(cant.replace(',', '')) for cant in asociados_data.values())
+                st.success(f"🎉 Encontrados {len(asociados_data)} asociados con un total de {total_asociados:,}")
+            else:
+                st.warning("⚠️ No se encontraron datos de asociados en el BI")
+                
+        except Exception as e:
+            st.error(f"❌ Error al buscar asociados: {e}")
+            import traceback
+            st.error(traceback.format_exc())
         
         # ESTRATEGIA 3: Búsqueda por patrones regex en todo el texto
         if parqueaderos is None or peajes is None or fecha_analizada is None:
@@ -484,124 +489,6 @@ def find_parqueaderos_peajes_values(driver):
                         st.success(f"📅 Fecha encontrada con regex: {fecha_analizada}")
                     except:
                         pass
-        
-        # ESTRATEGIA 4: Buscar en contexto de tabla específica
-        if parqueaderos is None or peajes is None or fecha_analizada is None:
-            
-            # Buscar secciones que contengan ambos términos
-            sections_with_both = []
-            for i, line in enumerate(lines):
-                window = ' '.join(lines[max(0, i-5):min(len(lines), i+5)])
-                if 'parqueaderos' in window.lower() and 'peajes' in window.lower():
-                    sections_with_both.append((i, window))
-            
-            if sections_with_both:
-                st.info(f"📋 Encontradas {len(sections_with_both)} secciones con ambos términos")
-                
-                for idx, section in sections_with_both:
-                    # Extraer todos los números de la sección
-                    numbers = re.findall(r'\b\d{1,3}(?:,\d{3})+\b|\b\d{3,}\b', section)
-                    
-                    if len(numbers) >= 2:
-                        # Asumir que el primer número es Parqueaderos y el segundo Peajes
-                        if parqueaderos is None:
-                            parqueaderos = numbers[0]
-                        if peajes is None:
-                            peajes = numbers[1]
-                    
-                    # Buscar fecha en la sección
-                    if fecha_analizada is None:
-                        fecha_match = re.search(r'\b\d{1,2}/\d{1,2}/202[4-9]\b', section)
-                        if fecha_match:
-                            try:
-                                fecha_cruda = fecha_match.group(0)
-                                for fmt in ['%m/%d/%Y', '%d/%m/%Y']:
-                                    try:
-                                        fecha_obj = datetime.strptime(fecha_cruda, fmt)
-                                        fecha_analizada = fecha_obj.strftime('%d/%m/%Y')
-                                        break
-                                    except:
-                                        continue
-                            except:
-                                pass
-                    
-                    if parqueaderos and peajes and fecha_analizada:
-                        break
-        
-        # BUSCAR ASOCIADOS Y SUS CANTIDADES
-        try:
-            # Buscar la sección de asociados en el texto
-            asociados_section_found = False
-            total_asociados = 0
-            
-            for i, line in enumerate(lines):
-                line_clean = line.strip()
-                
-                # Buscar líneas que parezcan asociados con cantidades
-                # Patrón: texto (asociado) seguido de número
-                if line_clean and not any(keyword in line_clean.lower() for keyword in 
-                                         ['servicio', 'cantidad', 'asociado', 'sum of', 'total', 'scroll', 'microsoft']):
-                    
-                    # Buscar si la línea tiene un formato de asociado: texto + número
-                    asociado_match = re.match(r'^([A-Za-z\s]+?)\s+(\d{1,3}(?:,\d{3})*|\d+)$', line_clean)
-                    if asociado_match:
-                        asociado_nombre = asociado_match.group(1).strip()
-                        asociado_cantidad = asociado_match.group(2)
-                        
-                        # Filtrar nombres que no son asociados reales
-                        if (asociado_nombre and 
-                            len(asociado_nombre) > 2 and 
-                            not asociado_nombre.isdigit() and
-                            not any(keyword in asociado_nombre.lower() for keyword in 
-                                   ['select', 'row', 'scroll', 'up', 'down', 'left', 'right'])):
-                            
-                            asociados_data[asociado_nombre] = asociado_cantidad
-                            asociados_section_found = True
-                            
-                            # Sumar al total
-                            try:
-                                total_asociados += int(asociado_cantidad.replace(',', ''))
-                            except:
-                                pass
-            
-            # Si no encontramos asociados con el método anterior, buscar por contexto de tabla
-            if not asociados_section_found:
-                # Buscar después de la palabra "Asociado" en el texto
-                for i, line in enumerate(lines):
-                    if 'asociado' in line.lower():
-                        # Buscar en las siguientes 20 líneas
-                        for j in range(i+1, min(i+21, len(lines))):
-                            next_line = lines[j].strip()
-                            if next_line and not any(keyword in next_line.lower() for keyword in 
-                                                   ['total', 'servicio', 'cantidad', 'scroll']):
-                                
-                                # Intentar extraer asociado y cantidad
-                                parts = next_line.split()
-                                if len(parts) >= 2:
-                                    # El último elemento debería ser la cantidad
-                                    posible_cantidad = parts[-1]
-                                    if re.match(r'^\d{1,3}(?:,\d{3})*$', posible_cantidad):
-                                        asociado_nombre = ' '.join(parts[:-1]).strip()
-                                        if (asociado_nombre and 
-                                            len(asociado_nombre) > 2 and 
-                                            not any(keyword in asociado_nombre.lower() for keyword in 
-                                                   ['select', 'row'])):
-                                            
-                                            asociados_data[asociado_nombre] = posible_cantidad
-                                            asociados_section_found = True
-                                            
-                                            try:
-                                                total_asociados += int(posible_cantidad.replace(',', ''))
-                                            except:
-                                                pass
-            
-            if asociados_section_found:
-                st.success(f"📊 Encontrados {len(asociados_data)} asociados con un total de {total_asociados:,}")
-            else:
-                st.warning("⚠️ No se encontraron datos de asociados en el BI")
-                
-        except Exception as e:
-            st.warning(f"⚠️ Error al buscar asociados: {e}")
         
         # Verificación final
         if parqueaderos is None:
