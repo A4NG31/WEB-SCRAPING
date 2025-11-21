@@ -201,7 +201,7 @@ def extract_number_from_text(text):
 def find_parqueaderos_peajes_values(driver):
     """
     Buscar los valores de Parqueaderos y Peajes en el Power BI
-    Y también extraer la fecha analizada y los asociados
+    Y también extraer la fecha analizada y los servicios
     """
     try:
         # Esperar a que la página cargue completamente
@@ -216,7 +216,7 @@ def find_parqueaderos_peajes_values(driver):
         parqueaderos = None
         peajes = None
         fecha_analizada = None
-        asociados_data = {}
+        servicios_data = {}
         
         # Buscar en líneas consecutivas
         for i, line in enumerate(lines):
@@ -278,67 +278,67 @@ def find_parqueaderos_peajes_values(driver):
                             except:
                                 pass
         
-        # BUSCAR ASOCIADOS
+        # BUSCAR SERVICIOS (reemplaza a Asociados)
         try:
-            # Buscar la sección de "Asociado" en el texto
+            # Buscar la sección de "SERVICIOS" en el texto
             start_index = -1
             for i, line in enumerate(lines):
-                if 'asociado' in line.lower():
+                if 'servicios' in line.lower():
                     start_index = i
                     break
             
             if start_index != -1:
-                # Buscar desde la sección de Asociado hacia adelante
-                asociados_encontrados = 0
-                current_asociado = None
+                # Buscar desde la sección de SERVICIOS hacia adelante
+                servicios_encontrados = 0
+                current_servicio = None
                 
                 for i in range(start_index + 1, min(start_index + 30, len(lines))):
                     line_clean = lines[i].strip()
                     
-                    # Si encontramos "Total" después de algunos asociados, terminamos
-                    if 'total' in line_clean.lower() and asociados_encontrados > 0:
+                    # Si encontramos "Total" después de algunos servicios, terminamos
+                    if 'total' in line_clean.lower() and servicios_encontrados > 0:
                         break
                     
                     # Saltar líneas vacías o de encabezados/controles
                     if (not line_clean or 
                         any(keyword in line_clean.lower() for keyword in 
-                            ['asociado', 'sum of cantidad', 'scroll', 'select row', 'servicio', 'cantidad', 'row selection', 'microsoft'])):
+                            ['servicios', 'transacciones', 'scroll', 'select row', 'cantidad', 'row selection', 'microsoft'])):
                         continue
                     
-                    # Si la línea parece ser un nombre de asociado (texto sin números)
+                    # Si la línea parece ser un nombre de servicio (texto sin números)
                     if (re.match(r'^[A-Za-z\s]+$', line_clean) and 
                         len(line_clean) > 2 and
                         not any(keyword in line_clean.lower() for keyword in ['up', 'down', 'left', 'right'])):
                         
-                        current_asociado = line_clean
+                        current_servicio = line_clean
                     
-                    # Si la línea parece ser un número y tenemos un asociado pendiente
-                    elif (current_asociado and 
+                    # Si la línea parece ser un número y tenemos un servicio pendiente
+                    elif (current_servicio and 
                           re.match(r'^\d{1,6}$', line_clean) and
                           line_clean not in ['-', '+', '130']):
                         
-                        asociados_data[current_asociado] = line_clean
-                        asociados_encontrados += 1
-                        current_asociado = None
+                        servicios_data[current_servicio] = line_clean
+                        servicios_encontrados += 1
+                        current_servicio = None
             
             # Si no encontramos con el método anterior, intentar método alternativo
-            if not asociados_data:
+            if not servicios_data:
                 # Buscar patrones específicos en el texto completo
                 for i, line in enumerate(lines):
                     line_clean = line.strip()
                     
-                    # Buscar líneas que sean solo números (cantidades)
+                    # Buscar líneas que sean solo números (transacciones)
                     if re.match(r'^\d{1,6}$', line_clean) and line_clean not in ['0', '467', '1292']:
-                        # Buscar hacia atrás para encontrar el asociado
+                        # Buscar hacia atrás para encontrar el servicio
                         for j in range(max(0, i-5), i):
                             prev_line = lines[j].strip()
                             if (prev_line and 
                                 re.match(r'^[A-Z][A-Za-z\s]+$', prev_line) and
                                 len(prev_line) > 2 and
                                 not any(keyword in prev_line.lower() for keyword in 
-                                       ['scroll', 'select', 'row', 'servicio', 'cantidad', 'asociado', 'total', 'parqueaderos', 'peajes'])):
+                                       ['scroll', 'select', 'row', 'servicios', 'transacciones', 'total', 'parqueaderos', 'peajes'])):
                                 
-                                asociados_data[prev_line] = line_clean
+                                servicios_data[prev_line] = line_clean
                                 break
                 
         except Exception as e:
@@ -377,7 +377,7 @@ def find_parqueaderos_peajes_values(driver):
             # Usar fecha actual como fallback
             fecha_analizada = datetime.now().strftime('%d/%m/%Y')
         
-        return parqueaderos, peajes, fecha_analizada, asociados_data
+        return parqueaderos, peajes, fecha_analizada, servicios_data
         
     except Exception as e:
         return None, None, None, {}
@@ -402,8 +402,8 @@ def get_powerbi_data():
             # Esperar a que cargue la página
             time.sleep(15)
             
-            # Buscar los valores de Parqueaderos, Peajes, Fecha y Asociados
-            parqueaderos, peajes, fecha_analizada, asociados_data = find_parqueaderos_peajes_values(driver)
+            # Buscar los valores de Parqueaderos, Peajes, Fecha y Servicios
+            parqueaderos, peajes, fecha_analizada, servicios_data = find_parqueaderos_peajes_values(driver)
             
             if parqueaderos is None or peajes is None:
                 st.error("❌ No se pudieron extraer los valores del dashboard")
@@ -418,7 +418,7 @@ def get_powerbi_data():
                     "parqueaderos": parqueaderos_num,
                     "peajes": peajes_num,
                     "fecha_analizada": fecha_analizada,
-                    "asociados": asociados_data
+                    "servicios": servicios_data
                 }
             except ValueError as e:
                 st.error(f"❌ Error convirtiendo valores a números: {e}")
@@ -638,20 +638,20 @@ if st.session_state.get("scraping_done", False):
         # Añadir los datos de Power BI al mensaje
         mensaje += f"\nFacturas sin CUFE: (BI actualizado: {powerbi_data['fecha_analizada']})\n\nParqueaderos: {powerbi_data['parqueaderos']:,}\nPeajes: {powerbi_data['peajes']:,}"
         
-        # Añadir los asociados al mensaje
-        if powerbi_data.get('asociados'):
-            mensaje += f"\n\nTransacciones Sin Factura por asociado: (BI actualizado: {powerbi_data['fecha_analizada']})\n\n"
+        # Añadir los servicios al mensaje
+        if powerbi_data.get('servicios'):
+            mensaje += f"\n\nTransacciones Sin Factura por servicio: (BI actualizado: {powerbi_data['fecha_analizada']})\n\n"
             
-            # Calcular total de asociados
-            total_asociados = 0
-            for asociado, cantidad in powerbi_data['asociados'].items():
+            # Calcular total de servicios
+            total_servicios = 0
+            for servicio, cantidad in powerbi_data['servicios'].items():
                 try:
-                    total_asociados += int(cantidad.replace(',', ''))
+                    total_servicios += int(cantidad.replace(',', ''))
                 except:
                     pass
                 
-                mensaje += f"{asociado}: {cantidad}\n"
+                mensaje += f"{servicio}: {cantidad}\n"
             
-            mensaje += f"\nTOTAL: {total_asociados:,}"
+            mensaje += f"\nTOTAL: {total_servicios:,}"
 
         st.text_area("Mensaje generado", mensaje, height=400)
