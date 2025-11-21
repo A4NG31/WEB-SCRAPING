@@ -652,6 +652,5 @@ if st.session_state.get("scraping_done", False):
                 
                 mensaje += f"{servicio}: {cantidad}\n"
             
-            mensaje += f"\nTOTAL: {total_servicios:,}"
 
         st.text_area("Mensaje generado", mensaje, height=400)
