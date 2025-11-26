@@ -237,7 +237,7 @@ def find_parqueaderos_peajes_values(driver):
     """
     try:
         # Esperar a que la página cargue completamente
-        time.sleep(10)
+        time.sleep(12)
         
         # Obtener todo el texto visible de la página
         page_text = driver.find_element(By.TAG_NAME, "body").text
@@ -250,6 +250,11 @@ def find_parqueaderos_peajes_values(driver):
         fecha_analizada = None
         servicios_data = {}
         tabla_asociados = []
+        
+        # DEBUG: Mostrar líneas para análisis
+        print("=== LÍNEAS ENCONTRADAS EN EL BI ===")
+        for i, line in enumerate(lines):
+            print(f"{i}: {line}")
         
         # Buscar valores principales
         for i, line in enumerate(lines):
@@ -293,134 +298,138 @@ def find_parqueaderos_peajes_values(driver):
                     except:
                         pass
 
-        # BUSCAR TABLA DE ASOCIADOS - MÉTODO MEJORADO
+        # NUEVO MÉTODO MEJORADO PARA TABLA DE ASOCIADOS
         try:
-            # Buscar patrones de tabla: asociado + peaje + porcentaje
-            # Recorremos todas las líneas buscando el patrón
-            i = 0
-            while i < len(lines) - 2:
-                current_line = lines[i]
-                
-                # Buscar líneas que podrían ser nombres de asociados
-                # (texto con múltiples palabras en mayúsculas, no controles)
-                if (len(current_line) > 5 and 
-                    re.match(r'^[A-Z][A-Z\s]+$', current_line) and
-                    not any(keyword in current_line.lower() for keyword in 
-                           ['scroll', 'select', 'row', 'total', 'up', 'down', 'microsoft', 'power bi']) and
-                    not re.search(r'\d', current_line)):
-                    
-                    # Verificar las siguientes dos líneas
-                    if i + 2 < len(lines):
-                        siguiente_linea = lines[i + 1]
-                        porcentaje_linea = lines[i + 2]
-                        
-                        # La siguiente línea debería ser un peaje
-                        if ('peaje' in siguiente_linea.lower() and 
-                            re.search(r'\d{1,3}%', porcentaje_linea)):
-                            
-                            porcentaje_match = re.search(r'(\d{1,3})%', porcentaje_linea)
-                            if porcentaje_match:
-                                porcentaje_val = int(porcentaje_match.group(1))
-                                if 1 <= porcentaje_val <= 100:
-                                    tabla_asociados.append({
-                                        "asociado": current_line,
-                                        "peaje": siguiente_linea,
-                                        "porcentaje": f"{porcentaje_val}%"
-                                    })
-                                    i += 3  # Saltar las 3 líneas procesadas
-                                    continue
-                
-                i += 1
+            # Buscar la sección de la tabla por patrones específicos
+            # Primero encontramos dónde está la tabla buscando palabras clave
+            secciones_tabla = []
             
-            # Si no encontramos suficientes elementos, intentar método alternativo
-            if len(tabla_asociados) < 2:
-                tabla_asociados = []  # Reiniciar
-                
-                # Buscar por patrones de porcentaje y luego buscar hacia atrás
-                for i in range(2, len(lines)):
-                    current_line = lines[i]
-                    porcentaje_match = re.search(r'(\d{1,3})%', current_line)
-                    
-                    if porcentaje_match:
-                        porcentaje_val = int(porcentaje_match.group(1))
-                        if 1 <= porcentaje_val <= 100:
-                            # Buscar hacia atrás para encontrar peaje y asociado
-                            peaje_encontrado = None
-                            asociado_encontrado = None
-                            
-                            # Buscar peaje en la línea anterior
-                            if i - 1 >= 0 and 'peaje' in lines[i - 1].lower():
-                                peaje_encontrado = lines[i - 1]
-                                
-                                # Buscar asociado en líneas anteriores
-                                for j in range(i - 2, max(i - 6, -1), -1):
-                                    if (len(lines[j]) > 5 and 
-                                        re.match(r'^[A-Z][A-Z\s]+$', lines[j]) and
-                                        not any(keyword in lines[j].lower() for keyword in 
-                                               ['peaje', 'porcentaje', 'scroll', 'select'])):
-                                        asociado_encontrado = lines[j]
-                                        break
-                            
-                            if asociado_encontrado and peaje_encontrado:
-                                # Verificar que no sea duplicado
-                                duplicado = any(
-                                    item['asociado'] == asociado_encontrado and item['peaje'] == peaje_encontrado
-                                    for item in tabla_asociados
-                                )
-                                if not duplicado:
-                                    tabla_asociados.append({
-                                        "asociado": asociado_encontrado,
-                                        "peaje": peaje_encontrado,
-                                        "porcentaje": f"{porcentaje_val}%"
-                                    })
+            for i, line in enumerate(lines):
+                if any(keyword in line.lower() for keyword in ['asociado', 'peaje', 'porcentaje', 'consecutivo', 'consumo']):
+                    secciones_tabla.append(i)
             
-            # Método final: búsqueda por patrones específicos
-            if len(tabla_asociados) < 1:
-                # Lista de asociados comunes para ayudar en la identificación
-                asociados_comunes = [
-                    'UNION VIAL RIO PAMPLONITA',
-                    'PACIFICO TRES',
-                    'VIA 40 EXPRESS', 
-                    'AUTOPISTA MAGDALENA MEDIO',
-                    'AUTOPISTAS DEL CAFÉ',
-                    'AUTOPISTA VILLAVICENCIO YOPAL',
-                    'RUTA DEL SOL',
-                    'AUTOPISTA ALTO DE VINAS',
-                    'AUTOPISTA CONCESION LA GUAJIRA'
-                ]
+            # Si encontramos secciones, procesar cada una
+            for seccion_idx in secciones_tabla:
+                # Buscar en un rango alrededor de la sección identificada
+                start_idx = max(0, seccion_idx - 2)
+                end_idx = min(len(lines), seccion_idx + 20)
                 
-                # Buscar cualquier combinación que parezca un registro válido
-                for i in range(len(lines) - 2):
-                    line1, line2, line3 = lines[i], lines[i+1] if i+1 < len(lines) else "", lines[i+2] if i+2 < len(lines) else ""
+                # Procesar esta sección
+                i = start_idx
+                while i < end_idx - 2:
+                    line1 = lines[i]
+                    line2 = lines[i + 1] if i + 1 < len(lines) else ""
+                    line3 = lines[i + 2] if i + 2 < len(lines) else ""
                     
-                    # Verificar si line1 parece un asociado
-                    es_asociado = (
-                        len(line1) > 5 and 
-                        any(asociado in line1 for asociado in asociados_comunes) and
-                        not any(keyword in line1.lower() for keyword in ['peaje', 'porcentaje'])
-                    )
+                    # PATRÓN 1: Asociado conocido + Peaje + Porcentaje
+                    asociados_conocidos = [
+                        'UNION VIAL RIO PAMPLONITA',
+                        'PACIFICO TRES',
+                        'VIA 40 EXPRESS',
+                        'AUTOPISTA MAGDALENA MEDIO',
+                        'AUTOPISTAS DEL CAFÉ',
+                        'AUTOPISTA VILLAVICENCIO YOPAL',
+                        'RUTA DEL SOL',
+                        'AUTOPISTA ALTO DE VINAS',
+                        'AUTOPISTA CONCESION LA GUAJIRA'
+                    ]
+                    
+                    peajes_conocidos = [
+                        'PEAJE LOS ACACIOS',
+                        'PEAJE IRRA',
+                        'PEAJE CHUSACA',
+                        'PEAJE ZAMBITO',
+                        'PEAJE LA SELVA',
+                        'PEAJE GUARINOCITO'
+                    ]
+                    
+                    # Verificar si line1 es un asociado conocido
+                    es_asociado_conocido = any(asociado in line1 for asociado in asociados_conocidos)
                     
                     # Verificar si line2 es un peaje
                     es_peaje = 'peaje' in line2.lower()
                     
                     # Verificar si line3 es un porcentaje
-                    es_porcentaje = re.search(r'\d{1,3}%', line3)
+                    porcentaje_match = re.search(r'(\d{1,3})%', line3)
                     
-                    if es_asociado and es_peaje and es_porcentaje:
-                        porcentaje_match = re.search(r'(\d{1,3})%', line3)
-                        if porcentaje_match:
-                            porcentaje_val = int(porcentaje_match.group(1))
-                            if 1 <= porcentaje_val <= 100:
-                                duplicado = any(
-                                    item['asociado'] == line1 and item['peaje'] == line2
-                                    for item in tabla_asociados
-                                )
-                                if not duplicado:
-                                    tabla_asociados.append({
-                                        "asociado": line1,
-                                        "peaje": line2,
-                                        "porcentaje": f"{porcentaje_val}%"
-                                    })
+                    if es_asociado_conocido and es_peaje and porcentaje_match:
+                        porcentaje_val = int(porcentaje_match.group(1))
+                        if 1 <= porcentaje_val <= 100:
+                            # Verificar que no sea duplicado
+                            duplicado = any(
+                                item['asociado'] == line1 and item['peaje'] == line2
+                                for item in tabla_asociados
+                            )
+                            if not duplicado:
+                                tabla_asociados.append({
+                                    "asociado": line1,
+                                    "peaje": line2,
+                                    "porcentaje": f"{porcentaje_val}%"
+                                })
+                                i += 3  # Saltar las 3 líneas procesadas
+                                continue
+                    
+                    # PATRÓN 2: Cualquier texto largo (posible asociado) + Peaje + Porcentaje
+                    if (len(line1) > 8 and 
+                        not any(keyword in line1.lower() for keyword in ['peaje', 'porcentaje', 'scroll', 'select', 'row']) and
+                        'peaje' in line2.lower() and 
+                        porcentaje_match):
+                        
+                        porcentaje_val = int(porcentaje_match.group(1))
+                        if 1 <= porcentaje_val <= 100:
+                            duplicado = any(
+                                item['asociado'] == line1 and item['peaje'] == line2
+                                for item in tabla_asociados
+                            )
+                            if not duplicado:
+                                tabla_asociados.append({
+                                    "asociado": line1,
+                                    "peaje": line2,
+                                    "porcentaje": f"{porcentaje_val}%"
+                                })
+                                i += 3
+                                continue
+                    
+                    i += 1
+            
+            # Si aún no encontramos suficientes, buscar por porcentajes y reconstruir
+            if len(tabla_asociados) < 4:
+                # Buscar todos los porcentajes en el texto
+                porcentajes_encontrados = []
+                for i, line in enumerate(lines):
+                    porcentaje_match = re.search(r'(\d{1,3})%', line)
+                    if porcentaje_match:
+                        porcentaje_val = int(porcentaje_match.group(1))
+                        if 1 <= porcentaje_val <= 100:
+                            porcentajes_encontrados.append((i, porcentaje_val))
+                
+                # Para cada porcentaje, buscar su peaje y asociado
+                for idx_porcentaje, porcentaje_val in porcentajes_encontrados:
+                    # Buscar peaje (línea anterior al porcentaje)
+                    peaje_encontrado = None
+                    if idx_porcentaje - 1 >= 0 and 'peaje' in lines[idx_porcentaje - 1].lower():
+                        peaje_encontrado = lines[idx_porcentaje - 1]
+                    
+                    # Buscar asociado (línea anterior al peaje)
+                    asociado_encontrado = None
+                    if peaje_encontrado and idx_porcentaje - 2 >= 0:
+                        asociado_encontrado = lines[idx_porcentaje - 2]
+                        # Verificar que sea un asociado válido
+                        if (len(asociado_encontrado) < 5 or 
+                            any(keyword in asociado_encontrado.lower() for keyword in ['peaje', 'porcentaje', 'scroll'])):
+                            asociado_encontrado = None
+                    
+                    if asociado_encontrado and peaje_encontrado:
+                        duplicado = any(
+                            item['asociado'] == asociado_encontrado and item['peaje'] == peaje_encontrado
+                            for item in tabla_asociados
+                        )
+                        if not duplicado:
+                            tabla_asociados.append({
+                                "asociado": asociado_encontrado,
+                                "peaje": peaje_encontrado,
+                                "porcentaje": f"{porcentaje_val}%"
+                            })
                 
         except Exception as e:
             print(f"Error extrayendo tabla de asociados: {e}")
@@ -445,6 +454,15 @@ def find_parqueaderos_peajes_values(driver):
                 except:
                     pass
         
+        # DEBUG: Mostrar lo que encontramos
+        print(f"=== RESULTADOS ENCONTRADOS ===")
+        print(f"Parqueaderos: {parqueaderos}")
+        print(f"Peajes: {peajes}")
+        print(f"Fecha: {fecha_analizada}")
+        print(f"Tabla asociados: {len(tabla_asociados)} registros")
+        for item in tabla_asociados:
+            print(f"  - {item}")
+        
         # Verificación final
         if parqueaderos is None:
             st.error("❌ No se pudo encontrar el valor de Parqueaderos")
@@ -458,6 +476,7 @@ def find_parqueaderos_peajes_values(driver):
         return parqueaderos, peajes, fecha_analizada, servicios_data, tabla_asociados
         
     except Exception as e:
+        print(f"Error en find_parqueaderos_peajes_values: {e}")
         return None, None, None, {}, []
 
 def get_powerbi_data():
