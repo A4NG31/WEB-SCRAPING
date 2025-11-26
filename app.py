@@ -201,7 +201,7 @@ def extract_number_from_text(text):
 def find_parqueaderos_peajes_values(driver):
     """
     Buscar los valores de Parqueaderos y Peajes en el Power BI
-    Y también extraer la fecha analizada y los servicios
+    Y también extraer la fecha analizada, los servicios y la tabla de asociados
     """
     try:
         # Esperar a que la página cargue completamente
@@ -217,6 +217,7 @@ def find_parqueaderos_peajes_values(driver):
         peajes = None
         fecha_analizada = None
         servicios_data = {}
+        tabla_asociados = []  # Lista para almacenar los datos de la tabla de asociados
         
         # Buscar en líneas consecutivas
         for i, line in enumerate(lines):
@@ -343,7 +344,72 @@ def find_parqueaderos_peajes_values(driver):
                 
         except Exception as e:
             pass
-        
+
+        # BUSCAR TABLA DE ASOCIADOS, PEAJES Y PORCENTAJES
+        try:
+            # Buscar patrones que coincidan con la estructura: "ASOCIADO", "PEAJE", "PORCENTAJE"
+            # Ejemplo: "UNION VIAL RIO PAMPLONITA", "PEAJE LOS ACACIOS", "99%"
+            
+            # Buscar líneas que contengan porcentajes
+            for i, line in enumerate(lines):
+                line_clean = line.strip()
+                
+                # Buscar porcentajes (ej: 99%, 97%, etc.)
+                porcentaje_match = re.search(r'(\d{1,3})%', line_clean)
+                if porcentaje_match:
+                    porcentaje = porcentaje_match.group(1) + "%"
+                    
+                    # Buscar hacia atrás para encontrar el peaje y asociado
+                    peaje = None
+                    asociado = None
+                    
+                    # Buscar en las líneas anteriores (hasta 5 líneas hacia atrás)
+                    for j in range(max(0, i-5), i):
+                        prev_line = lines[j].strip()
+                        
+                        # Si la línea contiene "PEAJE" o parece ser un nombre de peaje
+                        if 'peaje' in prev_line.lower() and not peaje:
+                            peaje = prev_line
+                        # Si la línea parece ser un nombre de asociado (texto más largo, sin números)
+                        elif (len(prev_line) > 5 and 
+                              re.match(r'^[A-Z][A-Za-z\s]+$', prev_line) and
+                              not any(keyword in prev_line.lower() for keyword in 
+                                     ['scroll', 'select', 'row', 'servicios', 'transacciones', 'total', 'parqueaderos', 'peajes', '%']) and
+                              not asociado):
+                            asociado = prev_line
+                    
+                    # Si encontramos los tres elementos, añadimos a la tabla
+                    if asociado and peaje and porcentaje:
+                        tabla_asociados.append({
+                            "asociado": asociado,
+                            "peaje": peaje,
+                            "porcentaje": porcentaje
+                        })
+            
+            # Método alternativo: buscar patrones específicos en el texto completo
+            if not tabla_asociados:
+                # Buscar combinaciones de texto que parezcan ser asociado + peaje + porcentaje
+                for i in range(len(lines) - 2):
+                    line1 = lines[i].strip()
+                    line2 = lines[i+1].strip() if i+1 < len(lines) else ""
+                    line3 = lines[i+2].strip() if i+2 < len(lines) else ""
+                    
+                    # Verificar si tenemos un patrón: [ASOCIADO] + [PEAJE] + [PORCENTAJE]
+                    if (line1 and len(line1) > 5 and 
+                        'peaje' in line2.lower() and 
+                        re.search(r'\d{1,3}%', line3)):
+                        
+                        porcentaje_match = re.search(r'(\d{1,3})%', line3)
+                        if porcentaje_match:
+                            tabla_asociados.append({
+                                "asociado": line1,
+                                "peaje": line2,
+                                "porcentaje": porcentaje_match.group(1) + "%"
+                            })
+                
+        except Exception as e:
+            print(f"Error extrayendo tabla de asociados: {e}")
+
         # Búsqueda por patrones regex en todo el texto
         if parqueaderos is None or peajes is None or fecha_analizada is None:
             
@@ -377,10 +443,10 @@ def find_parqueaderos_peajes_values(driver):
             # Usar fecha actual como fallback
             fecha_analizada = datetime.now().strftime('%d/%m/%Y')
         
-        return parqueaderos, peajes, fecha_analizada, servicios_data
+        return parqueaderos, peajes, fecha_analizada, servicios_data, tabla_asociados
         
     except Exception as e:
-        return None, None, None, {}
+        return None, None, None, {}, []
 
 def get_powerbi_data():
     """
@@ -402,8 +468,8 @@ def get_powerbi_data():
             # Esperar a que cargue la página
             time.sleep(15)
             
-            # Buscar los valores de Parqueaderos, Peajes, Fecha y Servicios
-            parqueaderos, peajes, fecha_analizada, servicios_data = find_parqueaderos_peajes_values(driver)
+            # Buscar los valores de Parqueaderos, Peajes, Fecha, Servicios y Tabla de Asociados
+            parqueaderos, peajes, fecha_analizada, servicios_data, tabla_asociados = find_parqueaderos_peajes_values(driver)
             
             if parqueaderos is None or peajes is None:
                 st.error("❌ No se pudieron extraer los valores del dashboard")
@@ -418,7 +484,8 @@ def get_powerbi_data():
                     "parqueaderos": parqueaderos_num,
                     "peajes": peajes_num,
                     "fecha_analizada": fecha_analizada,
-                    "servicios": servicios_data
+                    "servicios": servicios_data,
+                    "tabla_asociados": tabla_asociados  # Añadir la tabla de asociados
                 }
             except ValueError as e:
                 st.error(f"❌ Error convirtiendo valores a números: {e}")
@@ -652,5 +719,11 @@ if st.session_state.get("scraping_done", False):
                 
                 mensaje += f"{servicio}: {cantidad}\n"
             
+        # Añadir la tabla de consumo de consecutivos al mensaje
+        if powerbi_data.get('tabla_asociados'):
+            mensaje += f"\n\nSe realiza revisión de consumo de consecutivos:\n\n"
+            
+            for item in powerbi_data['tabla_asociados']:
+                mensaje += f"Asociado {item['asociado']}, {item['peaje']} al {item['porcentaje']}\n"
 
         st.text_area("Mensaje generado", mensaje, height=400)
