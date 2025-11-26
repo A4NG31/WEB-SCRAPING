@@ -198,6 +198,38 @@ def extract_number_from_text(text):
     except:
         return None
 
+def limpiar_tabla_asociados(tabla_asociados):
+    """Limpia y ordena la tabla de asociados, eliminando encabezados y duplicados"""
+    if not tabla_asociados:
+        return []
+    
+    # Filtrar elementos que no sean encabezados
+    elementos_limpios = []
+    for item in tabla_asociados:
+        asociado = item.get('asociado', '')
+        peaje = item.get('peaje', '')
+        porcentaje = item.get('porcentaje', '')
+        
+        # Eliminar elementos que sean claramente encabezados
+        if (asociado.upper() in ['ASOCIADO', 'PEAJE', 'PORCENTAJE'] or
+            peaje.upper() in ['ASOCIADO', 'PEAJE', 'PORCENTAJE']):
+            continue
+            
+        # Verificar que tengamos datos válidos
+        if (asociado and len(asociado) > 3 and 
+            peaje and 'peaje' in peaje.lower() and
+            porcentaje and re.match(r'\d{1,3}%', porcentaje)):
+            
+            # Verificar que no sea duplicado
+            duplicado = any(
+                elem['asociado'] == asociado and elem['peaje'] == peaje
+                for elem in elementos_limpios
+            )
+            if not duplicado:
+                elementos_limpios.append(item)
+    
+    return elementos_limpios
+
 def find_parqueaderos_peajes_values(driver):
     """
     Buscar los valores de Parqueaderos y Peajes en el Power BI
@@ -345,67 +377,110 @@ def find_parqueaderos_peajes_values(driver):
         except Exception as e:
             pass
 
-        # BUSCAR TABLA DE ASOCIADOS, PEAJES Y PORCENTAJES
+        # BUSCAR TABLA DE ASOCIADOS, PEAJES Y PORCENTAJES - VERSIÓN MEJORADA
         try:
-            # Buscar patrones que coincidan con la estructura: "ASOCIADO", "PEAJE", "PORCENTAJE"
-            # Ejemplo: "UNION VIAL RIO PAMPLONITA", "PEAJE LOS ACACIOS", "99%"
+            # Buscar la sección que contiene la tabla de asociados
+            # Primero identificamos patrones que indican el inicio de esta tabla
+            tabla_inicio_indices = []
             
-            # Buscar líneas que contengan porcentajes
             for i, line in enumerate(lines):
-                line_clean = line.strip()
-                
-                # Buscar porcentajes (ej: 99%, 97%, etc.)
-                porcentaje_match = re.search(r'(\d{1,3})%', line_clean)
-                if porcentaje_match:
-                    porcentaje = porcentaje_match.group(1) + "%"
-                    
-                    # Buscar hacia atrás para encontrar el peaje y asociado
-                    peaje = None
-                    asociado = None
-                    
-                    # Buscar en las líneas anteriores (hasta 5 líneas hacia atrás)
-                    for j in range(max(0, i-5), i):
-                        prev_line = lines[j].strip()
-                        
-                        # Si la línea contiene "PEAJE" o parece ser un nombre de peaje
-                        if 'peaje' in prev_line.lower() and not peaje:
-                            peaje = prev_line
-                        # Si la línea parece ser un nombre de asociado (texto más largo, sin números)
-                        elif (len(prev_line) > 5 and 
-                              re.match(r'^[A-Z][A-Za-z\s]+$', prev_line) and
-                              not any(keyword in prev_line.lower() for keyword in 
-                                     ['scroll', 'select', 'row', 'servicios', 'transacciones', 'total', 'parqueaderos', 'peajes', '%']) and
-                              not asociado):
-                            asociado = prev_line
-                    
-                    # Si encontramos los tres elementos, añadimos a la tabla
-                    if asociado and peaje and porcentaje:
-                        tabla_asociados.append({
-                            "asociado": asociado,
-                            "peaje": peaje,
-                            "porcentaje": porcentaje
-                        })
+                line_clean = line.strip().lower()
+                # Buscar indicadores de que estamos en la tabla correcta
+                if any(keyword in line_clean for keyword in ['asociado', 'peaje', 'porcentaje', 'consecutivo']):
+                    tabla_inicio_indices.append(i)
             
-            # Método alternativo: buscar patrones específicos en el texto completo
-            if not tabla_asociados:
-                # Buscar combinaciones de texto que parezcan ser asociado + peaje + porcentaje
-                for i in range(len(lines) - 2):
-                    line1 = lines[i].strip()
-                    line2 = lines[i+1].strip() if i+1 < len(lines) else ""
-                    line3 = lines[i+2].strip() if i+2 < len(lines) else ""
+            # Si encontramos posibles inicios de tabla, procesamos desde allí
+            for start_idx in tabla_inicio_indices[-3:]:  # Revisar los últimos 3 posibles inicios
+                tabla_temp = []
+                items_encontrados = 0
+                
+                # Revisar las siguientes 20 líneas desde el inicio
+                for i in range(start_idx, min(start_idx + 20, len(lines))):
+                    current_line = lines[i].strip()
                     
-                    # Verificar si tenemos un patrón: [ASOCIADO] + [PEAJE] + [PORCENTAJE]
-                    if (line1 and len(line1) > 5 and 
-                        'peaje' in line2.lower() and 
-                        re.search(r'\d{1,3}%', line3)):
+                    # Saltar líneas que son claramente encabezados o controles
+                    if (not current_line or 
+                        current_line.lower() in ['asociado', 'peaje', 'porcentaje', 'consecutivo'] or
+                        any(keyword in current_line.lower() for keyword in 
+                            ['scroll', 'select', 'row', 'total', 'up', 'down', 'microsoft'])):
+                        continue
+                    
+                    # Buscar patrones de datos reales (asociado + peaje + porcentaje)
+                    # Un asociado típico tiene varias palabras en mayúsculas
+                    if (re.match(r'^[A-Z][A-Z\s]+$', current_line) and 
+                        len(current_line) > 5 and
+                        not any(keyword in current_line.lower() for keyword in ['peaje', 'porcentaje'])):
                         
-                        porcentaje_match = re.search(r'(\d{1,3})%', line3)
-                        if porcentaje_match:
-                            tabla_asociados.append({
-                                "asociado": line1,
-                                "peaje": line2,
-                                "porcentaje": porcentaje_match.group(1) + "%"
-                            })
+                        # Este podría ser un asociado, verificar las siguientes líneas
+                        if i + 2 < len(lines):
+                            siguiente_linea = lines[i + 1].strip()
+                            porcentaje_linea = lines[i + 2].strip()
+                            
+                            # Verificar si la siguiente línea es un peaje
+                            if ('peaje' in siguiente_linea.lower() and 
+                                re.search(r'\d{1,3}%', porcentaje_linea)):
+                                
+                                porcentaje_match = re.search(r'(\d{1,3})%', porcentaje_linea)
+                                if porcentaje_match:
+                                    # Validar que el porcentaje sea razonable (1-100%)
+                                    porcentaje_val = int(porcentaje_match.group(1))
+                                    if 1 <= porcentaje_val <= 100:
+                                        tabla_temp.append({
+                                            "asociado": current_line,
+                                            "peaje": siguiente_linea,
+                                            "porcentaje": f"{porcentaje_val}%"
+                                        })
+                                        items_encontrados += 1
+                
+                # Si encontramos al menos 2 items válidos, usamos esta tabla
+                if items_encontrados >= 2:
+                    tabla_asociados = tabla_temp
+                    break
+            
+            # Si no encontramos con el método anterior, usar búsqueda más agresiva
+            if not tabla_asociados:
+                # Buscar por patrones específicos de nombres conocidos
+                asociados_conocidos = [
+                    'UNION VIAL RIO PAMPLONITA',
+                    'PACIFICO TRES', 
+                    'AUTOPISTA MAGDALENA MEDIO',
+                    'AUTOPISTAS DEL CAFÉ',
+                    'AUTOPISTA VILLAVICENCIO YOPAL'
+                ]
+                
+                peajes_conocidos = [
+                    'PEAJE LOS ACACIOS',
+                    'PEAJE IRRA',
+                    'PEAJE CHUSACA',
+                    'PEAJE ZAMBITO',
+                    'PEAJE LA SELVA',
+                    'PEAJE GUARINOCITO'
+                ]
+                
+                for i in range(len(lines) - 2):
+                    linea_asociado = lines[i].strip()
+                    linea_peaje = lines[i + 1].strip() if i + 1 < len(lines) else ""
+                    linea_porcentaje = lines[i + 2].strip() if i + 2 < len(lines) else ""
+                    
+                    # Verificar si tenemos un asociado conocido
+                    asociado_valido = any(asociado in linea_asociado for asociado in asociados_conocidos)
+                    peaje_valido = any(peaje in linea_peaje for peaje in peajes_conocidos)
+                    porcentaje_valido = re.search(r'(\d{1,3})%', linea_porcentaje)
+                    
+                    if asociado_valido and peaje_valido and porcentaje_valido:
+                        porcentaje_val = int(porcentaje_valido.group(1))
+                        if 1 <= porcentaje_val <= 100:
+                            # Verificar que no sea duplicado
+                            duplicado = any(
+                                item['asociado'] == linea_asociado and item['peaje'] == linea_peaje
+                                for item in tabla_asociados
+                            )
+                            if not duplicado:
+                                tabla_asociados.append({
+                                    "asociado": linea_asociado,
+                                    "peaje": linea_peaje,
+                                    "porcentaje": f"{porcentaje_val}%"
+                                })
                 
         except Exception as e:
             print(f"Error extrayendo tabla de asociados: {e}")
@@ -475,6 +550,9 @@ def get_powerbi_data():
                 st.error("❌ No se pudieron extraer los valores del dashboard")
                 return None
             
+            # Limpiar la tabla de asociados
+            tabla_asociados_limpia = limpiar_tabla_asociados(tabla_asociados)
+            
             # Convertir a enteros
             try:
                 parqueaderos_num = int(parqueaderos.replace(',', ''))
@@ -485,7 +563,7 @@ def get_powerbi_data():
                     "peajes": peajes_num,
                     "fecha_analizada": fecha_analizada,
                     "servicios": servicios_data,
-                    "tabla_asociados": tabla_asociados  # Añadir la tabla de asociados
+                    "tabla_asociados": tabla_asociados_limpia  # Usar la tabla limpia
                 }
             except ValueError as e:
                 st.error(f"❌ Error convirtiendo valores a números: {e}")
