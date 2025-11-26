@@ -80,7 +80,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.title("🧾 Validador Motores de Facturación")
+st.title("🧾 Generador de informes de Facturación")
 
 # Credenciales
 USERNAME = st.secrets["credentials"]["USERNAME"]
